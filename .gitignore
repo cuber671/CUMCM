@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Environments & IDE
+.env
+.vscode/
+.idea/
+
+# Build & cache
+build/
+dist/
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 比赛数据集体积过大（3.8G，含 2.7G 的 pkl 文件），超出 GitHub 限制，仅保留本地
+data/
