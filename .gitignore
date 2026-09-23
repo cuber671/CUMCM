@@ -1,22 +1,18 @@
-# Python
-__pycache__/
-*.py[cod]
+# 环境与运行产物（不入库，复现靠 requirements.lock + environment-manifest.json）
 .venv/
-*.egg-info/
+runs/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
 
-# Environments & IDE
-.env
-.vscode/
-.idea/
-
-# Build & cache
-build/
-dist/
-.cache/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# 比赛数据集体积过大（3.8G，含 2.7G 的 pkl 文件），超出 GitHub 限制，仅保留本地
+# 大体积数据（附件共 ~4GB；数据版本由 data_manifest.json 审计冻结代替入库）
 data/
+
+# 模型权重缓存
+cache/
+*.pt
+!runs/**/checkpoint.pt
+
+# 临时
+*.log
+.DS_Store
