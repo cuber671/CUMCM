@@ -1,0 +1,12 @@
+\contentsline {section}{\numberline {1}问题重述}{2}{section.1}%
+\contentsline {section}{\numberline {2}问题分析与技术路线}{2}{section.2}%
+\contentsline {section}{\numberline {3}模型假设与符号说明}{2}{section.3}%
+\contentsline {section}{\numberline {4}问题一：多模态时序对齐模型的建立与求解}{2}{section.4}%
+\contentsline {section}{\numberline {5}问题二：面向缺失场景的鲁棒情感预测模型}{2}{section.5}%
+\contentsline {section}{\numberline {6}问题三：模型可解释性分析}{2}{section.6}%
+\contentsline {section}{\numberline {7}实验与结果分析}{2}{section.7}%
+\contentsline {section}{\numberline {8}模型评价与推广}{2}{section.8}%
+\contentsline {section}{参考文献}{2}{section*.3}%
+\contentsline {section}{\numberline {附录A}环境与核心参数}{2}{section.1}%
+\contentsline {section}{\numberline {附录B}关键代码}{2}{section.2}%
+\contentsfinish 

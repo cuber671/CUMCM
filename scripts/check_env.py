@@ -10,6 +10,7 @@
 同时导出 environment-manifest.json（论文"工具版本+核心参数"的唯一出处）。
 """
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -21,6 +22,13 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "environment-manifest.json"
+
+# 对齐 scripts/env.sh 约定：权重缓存统一收口 cache/，离线优先
+os.environ.setdefault("HF_HOME", str(ROOT / "cache" / "hf"))
+os.environ.setdefault("TORCH_HOME", str(ROOT / "cache" / "torch"))
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+BERT_LOCAL = str(ROOT / "cache" / "hf" / "bert-base-uncased")
+BERT_SOURCE = BERT_LOCAL if (Path(BERT_LOCAL) / "config.json").exists() else "bert-base-uncased"
 
 FEATURE_CONFIG = {
     "audio_sample_rate": 16000,
@@ -37,8 +45,8 @@ manifest = {
     "platform": platform.platform(),
     "feature_config": FEATURE_CONFIG,
     "models": {
-        "bert": "bert-base-uncased",
-        "forced_align": "torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H + functional.forced_align",
+        "bert": "bert-base-uncased @ 本地 cache/hf/bert-base-uncased（pin 86b5e0934494bd15c9632b12f734a8a67f723594）",
+        "forced_align": "torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H + functional.forced_align（cache/torch/hub/checkpoints）",
     },
 }
 
@@ -74,8 +82,8 @@ def main() -> int:
         from transformers import BertModel, BertTokenizerFast
         import transformers
         manifest["transformers"] = transformers.__version__
-        tok = BertTokenizerFast.from_pretrained("bert-base-uncased")
-        model = BertModel.from_pretrained("bert-base-uncased")
+        tok = BertTokenizerFast.from_pretrained(BERT_SOURCE, local_files_only=BERT_SOURCE != "bert-base-uncased")
+        model = BertModel.from_pretrained(BERT_SOURCE, local_files_only=BERT_SOURCE != "bert-base-uncased")
         enc = tok("environment smoke test", return_tensors="pt")
         with torch.no_grad():
             out = model(**enc).last_hidden_state
@@ -91,10 +99,12 @@ def main() -> int:
         labels = bundle.get_labels()
         with torch.no_grad():
             emission, _ = w2v(torch.randn(1, 16000))
-        tokens = torch.tensor([[labels.index(c) for c in "cat"]])
-        seg = torchaudio.functional.forced_align(emission, tokens)
-        assert seg is not None and seg.shape[-1] == len("cat")
-        report("smoke2 wav2vec2 forced_align", True, "1s 随机波形→词区间机械链路 OK")
+        # 本 bundle 词表 = 大写字母按词频排序 + '|' 词分隔符 + '-' 空白（P1 对齐器输入规范同源）
+        tokens = torch.tensor([[labels.index(c) for c in "CAT"]])
+        seg, _ = torchaudio.functional.forced_align(emission, tokens, blank=labels.index("-"))
+        # 2.11 API 返回帧级对齐 (B, T)：每帧指派 token 索引或 blank
+        assert seg is not None and seg.shape[0] == 1 and set(seg.unique().tolist()) & set(tokens[0].tolist())
+        report("smoke2 wav2vec2 forced_align", True, "1s 波形→帧级词对齐 OK（大写词表 29 类）")
     except Exception as e:  # noqa: BLE001
         report("smoke2 wav2vec2 forced_align", False, str(e))
 
@@ -131,6 +141,8 @@ def main() -> int:
 
     # ---- smoke 4: Py-Feat 真实帧 ----
     try:
+        sys.path.insert(0, str(ROOT / "src"))
+        import compat_feat  # noqa: F401  （scipy/numpy/torchvision 兼容垫片，必须先于 feat）
         from feat import Detector
         import feat as _f
         manifest["py_feat"] = getattr(_f, "__version__", "unknown")

@@ -178,9 +178,9 @@
     \setCJKfamilyfont{zhli}{LiSu}                             % 隶书
   \else
     \ifmcm@fandol % Linux/Overleaf：无华文新魏/隶书，以楷体近似替代
-      \setCJKfamilyfont{zhkai}{FandolKai}
-      \setCJKfamilyfont{zhxw}{FandolKai}
-      \setCJKfamilyfont{zhli}{FandolKai}
+      \setCJKfamilyfont{zhkai}{FandolKai-Regular.otf}
+      \setCJKfamilyfont{zhxw}[AutoFakeBold=2.15]{FandolKai-Regular.otf}
+      \setCJKfamilyfont{zhli}[AutoFakeBold=2.15]{FandolKai-Regular.otf}
       \ClassInfo{gmcmthesis}{fandol 字体集下以楷体近似替代华文新魏/隶书；%
         追求像素级一致请在 Windows/macOS 字体环境下编译}
     \fi
@@ -243,35 +243,35 @@
   \begingroup
     \centering
     % logo 行：官方 4 logo 原始尺寸（mm），inline 基线对齐
-    \vspace*{4.6mm}%
+    \vspace*{-3.0mm}%
     \includegraphics[width=36.1mm,height=23.0mm]{logo1.png}%
     \includegraphics[width=27.6mm,height=26.6mm]{logo2.png}%
     \includegraphics[width=28.0mm,height=28.0mm]{logo3.jpeg}%
     \includegraphics[width=24.1mm,height=22.8mm]{logo4.png}\par
     \vskip 10.2mm
     {\zihao{-2}\xwxwei\bfseries 中国研究生创新实践系列大赛\par}
-    \vskip 4.5mm
+    \vskip 2.0mm
     {\zihao{2}\xwxwei\bfseries “华为杯”第二十三届中国研究生\par}
     \vskip 4.0mm
     {\zihao{2}\xwxwei\bfseries 数学建模竞赛\par}
   \endgroup
   \vskip 24.5mm
   % 信息表：学校 / 参赛队号 / 队员姓名，小二加粗，值列下划线
-  \renewcommand\arraystretch{1.2}%
+  \renewcommand\arraystretch{1.4}%
   \noindent
-  \begin{tabularx}{\textwidth}{@{}p{22mm}X@{}}
+  \begin{tabularx}{\textwidth}{@{}p{30mm}X@{}}
     \zihao{-2}\bfseries 学\hspace{1.8em}校 &
-      \hfill\zihao{-2}\bfseries \gmcm@tokens@schoolname\hfill\null \\
+      \hfill\zihao{-2}\bfseries \gmcm@tokens@schoolname\hfill\null \\[2mm]
     \Xhline{1.2pt}
-    \\[-2mm]
+    \noalign{\vskip 9mm}
     \zihao{-2}\bfseries 参赛队号 &
-      \hfill\zihao{-2}\bfseries \gmcm@tokens@baominghao\hfill\null \\
+      \hfill\zihao{-2}\bfseries \gmcm@tokens@baominghao\hfill\null \\[2mm]
     \Xhline{1.2pt}
-    \\[-2mm]
+    \noalign{\vskip 12mm}
     \zihao{-2}\bfseries 队员姓名 &
-      \zihao{-2}\bfseries 1.~\gmcm@tokens@membera\hfill\null \\[-5.5mm]
-    & \zihao{-2}\bfseries 2.~\gmcm@tokens@memberb\hfill\null \\[-5.5mm]
-    & \zihao{-2}\bfseries 3.~\gmcm@tokens@memberc\hfill\null \\
+      \zihao{-2}\bfseries 1.~\gmcm@tokens@membera\hfill\null \\[2.8mm]
+    & \zihao{-2}\bfseries 2.~\gmcm@tokens@memberb\hfill\null \\[2.8mm]
+    & \zihao{-2}\bfseries 3.~\gmcm@tokens@memberc\hfill\null \\[2mm]
     \Xhline{1.2pt}
   \end{tabularx}\par
   \vskip 4mm
@@ -283,9 +283,9 @@
   \setcounter{page}{1}%
   \begingroup
     \centering
-    \vspace*{3.2mm}%
+    \vspace*{-4.4mm}%
     {\zihao{-2}\xwxwei\bfseries 中国研究生创新实践系列大赛\par}
-    \vskip 4.8mm
+    \vskip 1.9mm
     {\zihao{2}\xwxwei\bfseries “华为杯”第二十三届中国研究生\par}
     \vskip 4.0mm
     {\zihao{2}\xwxwei\bfseries 数学建模竞赛\par}
@@ -298,7 +298,7 @@
     \cline{2-2}
   \end{tabularx}
   \end{center}
-  \vskip 9.5mm
+  \vskip 13.7mm
 }
 
 %% 摘要环境：“摘 要：” 隶书小二居中（官方模板原式）

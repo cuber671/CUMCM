@@ -1,0 +1,88 @@
+﻿========================================================================
+ CUMCM E题 · 环境与模型清单（P1 管线所需库 + 模型及版本）
+ 更新日期：2026-09-23    环境：WSL2 / Python 3.10 (.venv) / RTX 5060 Laptop 8GB
+ 驱动：NVIDIA-SMI 615.65.06（CUDA UMD 13.4，兼容 cu12.8+/cu13 构建）
+ 维护约定：本文件为快照；权威来源 = requirements.in（直接依赖）+ lock 层；
+ 模型 revision/sha 以 scripts/env.sh 与 manifest 为准。变更需同步三处。
+ 状态：✅ 全部就绪（2026-09-23 实测通过：torch CUDA / forced_align / Detector）
+========================================================================
+
+一、Python 库
+------------------------------------------------------------------------
+【已安装并验证】
+  torch==2.11.0+cu130                  # PyPI 轮子；CUDA 可用性已实测（RTX 5060）
+  torchaudio==2.11.0+cu130             # forced_align / WAV2VEC2_ASR_BASE_960H 已实测可用
+  torchvision==0.26.0                  # py-feat 依赖
+  py-feat==0.6.1                       # 需配合 src/compat_feat.py 兼容垫片（见三-3）
+  transformers==5.17.0
+  tokenizers==0.23.2
+  huggingface-hub==1.32.0
+  numpy==2.2.6
+  pandas==2.3.3
+  scipy==1.15.3
+  matplotlib==3.10.9
+  scikit-learn==1.7.2
+  numba==0.67.0
+  numexpr==2.14.1                      # 强制升级：2.8.4 为 numpy1 编译，numpy2 下不可用
+  opencv-python-headless==5.0.0        # cv2；WSL2 无 GUI 用 headless
+  librosa==0.11.0
+  soundfile==0.14.0
+  opensmile==2.6.0                     # eGeMAPSv02 LLD 25 维已验证；零下载
+  imageio-ffmpeg==0.6.0                # 内置 ffmpeg 二进制 7.0.2-static（方案 §3 的"7.0.2"指此）
+  pillow==12.3.0
+  tqdm==4.70.1
+  pyyaml==6.0.3
+
+【待安装（装后回填）】
+  imageio                              # 抽帧 + 逐帧 pts 记录
+  seaborn                              # 论文图表（可选）
+
+【传递依赖】由 lock 层（uv pip compile → requirements.lock）冻结。
+
+二、模型权重（全部已落盘并验证）
+------------------------------------------------------------------------
+  1) bert-base-uncased（文本编码，方案 §3.1）
+     revision : 86b5e0934494bd15c9632b12f734a8a67f723594（已 pin）
+     校验     : model.safetensors sha256=68d45e234eb4a928074dfd868cead0219ab85354cc53d20e772753c6bb9169d3
+                （与官方 LFS pointer 一致，440,449,768 字节）
+     本地路径 : cache/hf/bert-base-uncased/（平铺；from_pretrained 该路径即离线）
+     状态     : ✅ tokenizer 加载已验证；BERT 前向待 §6.2 输出层标定
+
+  2) wav2vec2（forced alignment，方案 §2.2）
+     规格     : torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H（94M 参数，加载已验证）
+     文件     : cache/torch/hub/checkpoints/wav2vec2_fairseq_base_ls960_asr_ls960.pth (361MB)
+
+  3) Py-Feat 子模型（33 件，824MB）
+     本地路径 : cache/py-feat/（权威副本）；venv 内 feat/resources/ 下为运行时软链接
+     清单来源 : feat/resources/model_list.json（retinaface / pfld / xgb 全套 / resmasknet / img2pose）
+     状态     : ✅ Detector 构造实测通过
+     ⚠ 依赖垫片：src/compat_feat.py（管线必须 `from compat_feat import get_detector`）
+
+  4) torchvision 骨干
+     cache/torch/hub/checkpoints/resnet18-f37072fd.pth  (retinaface)
+     cache/torch/hub/checkpoints/resnet50-0676ba61.pth  (img2pose)
+     cache/torch/hub/checkpoints/resnet101-0676ba61.pth (img2pose)
+
+  5) openSMILE：无需下载（eGeMAPSv02 配置随 wheel 内置）
+
+三、下载通道实录与兼容垫片（2026-09-23）
+------------------------------------------------------------------------
+  1) 通道：PyPI ✅ 稳定；download.pytorch.org ❌ 大文件反复 EOF（已用 curl 续传绕过）；
+     huggingface.co cdn-lfs 被墙（hf CLI 会零字节挂起）→ 用 hf-mirror.com + curl，
+     必须 HF_HUB_DISABLE_XET=1；一切权重落盘后 sha256 对官方 pointer 核验。
+  2) env.sh 的 CUMCM_ROOT 已修为 bash/zsh 双兼容（原 BASH_SOURCE 写法在 zsh 下解析为空）。
+  3) src/compat_feat.py 垫片（py-feat 0.6.1 + 新版栈的兼容层，管线必须经此导入）：
+     - scipy.stats.binom_test ← binomtest（nltools 0.4.7 用已移除 API）
+     - numpy.ComplexWarning / numpy.object（deepdish 0.3.1）
+     - scipy.integrate.simps/trapz → simpson/trapezoid
+     - torchvision.io.read_video stub（0.26 移除；P1 自行抽帧，不经过该路径）
+     - download_url 存在即跳过 + cache/py-feat/ 软链接（离线可用、venv 重建不重下）
+
+四、待回填清单
+------------------------------------------------------------------------
+  [x] torch / torchaudio 实际落盘版本确认（2.11.0+cu130）
+  [x] py-feat 版本（0.6.1）+ 子模型清单（33 件）
+  [x] wav2vec2 权重文件与位置
+  [x] imageio/seaborn —— 仍未装（轻量，随管线开发时补）
+  [ ] requirements.lock 生成（uv pip compile）
+  [ ] HF_HUB_OFFLINE=1 开启（全部校验通过后；本文件即校验记录）

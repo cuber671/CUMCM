@@ -1,6 +1,8 @@
 # 模型缓存统一收口：所有管线脚本入口先 source 本文件
 # 约定：权重不入库（.gitignore 已覆盖 cache/），复现靠 revision pin + manifest
-export CUMCM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# bash/zsh 通用：bash 取 BASH_SOURCE，zsh source 时 $0 即本文件路径
+_script="${BASH_SOURCE[0]:-$0}"
+export CUMCM_ROOT="$(cd "$(dirname "$_script")/.." && pwd)"
 
 # bert-base-uncased 等 HF 权重与 tokenizer（首跑自动落盘）
 export HF_HOME="$CUMCM_ROOT/cache/hf"
