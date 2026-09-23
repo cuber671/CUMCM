@@ -1,7 +1,7 @@
 # 人为指定的直接依赖（传递依赖由 lock 层冻结，不在此维护）
 # 锁定顺序：Python → CUDA/GPU → torch/torchaudio → 其余 → smoke test → freeze
-torch
-torchaudio
+torch          # PyPI 默认 Linux 轮子即 cu12.x，支持 Blackwell sm_120（RTX 5060 Ti）
+torchaudio     # 版本须与 torch 同轮解析（uv 仲裁兼容对：torch 2.14.0 / torchaudio 2.11.0）
 transformers
 tokenizers
 numpy
@@ -12,7 +12,7 @@ opensmile
 py-feat
 librosa
 soundfile
-opencv-python
+opencv-python-headless   # WSL2 无 GUI；避免与 opencv-python 双 cv2 冲突
 imageio
 imageio-ffmpeg
 matplotlib
