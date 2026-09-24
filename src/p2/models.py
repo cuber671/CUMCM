@@ -169,11 +169,12 @@ class MRFN(nn.Module):
                  d: int = 64, hidden: int = 64, dropout: float = 0.3, n_cls: int = 3,
                  n_heads: int = 2, t_grid: int = 50,
                  use_missing_state: bool = True, use_masked_attn: bool = True,
-                 use_gate: bool = True):
+                 use_gate: bool = True, gate_ln: bool = False):
         super().__init__()
         self.use_missing_state = use_missing_state
         self.use_masked_attn = use_masked_attn
         self.use_gate = use_gate
+        self.gate_ln = gate_ln
         self.proj = nn.ModuleList([nn.Sequential(nn.Linear(din, d), nn.ReLU(),
                                                  nn.Dropout(dropout))
                                    for din in (d_text, d_audio, d_vision)])
@@ -189,6 +190,8 @@ class MRFN(nn.Module):
             gate_in = 3 * branch_dim + 3        # [h̃_t;h̃_a;h̃_v] + [c_t;c_a;c_v]
             self.gate = nn.Sequential(nn.Linear(gate_in, hidden), nn.ReLU(),
                                       nn.Dropout(dropout), nn.Linear(hidden, 3))
+            if gate_ln:                         # Round 4：门控/融合共用归一化表示
+                self.ln = nn.ModuleList([nn.LayerNorm(branch_dim) for _ in MODALITIES])
         self.heads = _LadderHeads(branch_dim if use_gate else 3 * branch_dim,
                                   hidden, dropout, n_cls)
 
@@ -216,6 +219,8 @@ class MRFN(nn.Module):
         ssum = content.sum(dim=1).clamp(min=1.0)
         cov = torch.stack([(content & avail[m]).sum(dim=1) / ssum for m in MODALITIES], dim=1)
         if self.use_gate:
+            if self.gate_ln:                    # Round 4：门控与融合共用归一化表示
+                h_tilde = {m: self.ln[i](h_tilde[m]) for i, m in enumerate(MODALITIES)}
             g = torch.softmax(self.gate(torch.cat(list(h_tilde.values()) + [cov], dim=-1)),
                               dim=-1)
             h = sum(g[:, i][:, None] * h_tilde[m] for i, m in enumerate(MODALITIES))
@@ -229,6 +234,7 @@ class MRFN(nn.Module):
 
 MODEL_REGISTRY.update({
     "MRFN": MRFN,
+    "MRFN_gLN": lambda **kw: MRFN(gate_ln=True, **kw),
     "MRFN_noState": lambda **kw: MRFN(use_missing_state=False, **kw),
     "MRFN_noMaskAttn": lambda **kw: MRFN(use_masked_attn=False, **kw),
     "MRFN_noGate": lambda **kw: MRFN(use_gate=False, **kw),
