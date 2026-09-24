@@ -20,6 +20,7 @@ import math
 
 import torch
 from torch import nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 def count_params(module: nn.Module) -> int:
@@ -35,6 +36,33 @@ def masked_pool(h: torch.Tensor, keep: torch.Tensor) -> torch.Tensor:
                         torch.zeros((), dtype=h.dtype, device=h.device))
     denom = keep_b.to(h.dtype).sum(dim=1).clamp(min=1.0)
     return h_eff.sum(dim=1) / denom[..., None]
+
+
+def content_window_gru(gru: nn.GRU, h: torch.Tensor, content: torch.Tensor):
+    """Round 3 序列语义修正：双向 GRU 只处理 content 连续窗（位置 1…sep_pos−1，
+    length = content.sum），special/padding 物理上不进 GRU（pack_padded_sequence），
+    输出映射回原 50 格，非 content 位置为 0。
+    附件2 网格的 content 恒为起于位置 1 的连续前缀窗（SEP 恒在最后有效位）。"""
+    n, t, d = h.shape
+    if bool(content[:, 0].any()):
+        raise ValueError("content 应起于位置 1（位置 0 为 CLS）")
+    lengths = content.sum(dim=1).long().cpu()
+    lmax = int(lengths.max().item()) if lengths.numel() else 0
+    out_dim = gru.hidden_size * (2 if getattr(gru, "bidirectional", False) else 1)
+    out_full = torch.zeros(n, t, out_dim, dtype=h.dtype, device=h.device)
+    if lmax == 0:
+        return out_full
+    pos = torch.arange(lmax)[None, :]
+    keep = (pos < lengths[:, None]).to(h.device)        # (N,Lmax) 窗内有效位（CPU 算完搬回）
+    win = torch.where(keep[..., None], h[:, 1:lmax + 1, :],
+                      torch.zeros((), dtype=h.dtype, device=h.device))
+    packed = pack_padded_sequence(win, lengths, batch_first=True, enforce_sorted=False)
+    out, _ = gru(packed)
+    out, _ = pad_packed_sequence(out, batch_first=True, total_length=lmax)
+    out_full[:, 1:lmax + 1, :] = torch.where(keep[..., None], out,
+                                             torch.zeros((), dtype=out.dtype,
+                                                         device=out.device))
+    return out_full
 
 
 class MissingEmbedding(nn.Module):

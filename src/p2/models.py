@@ -8,8 +8,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from src.p2.modules import (AvailabilityAttention, MissingEmbedding, count_params,
-                            masked_pool)
+from src.p2.modules import (AvailabilityAttention, MissingEmbedding, content_window_gru,
+                            count_params, masked_pool)
 from src.p2.pipeline import zero_fill
 
 MODALITIES = ("text", "audio", "vision")
@@ -85,9 +85,9 @@ class _ProjBiGRU(nn.Module):
         self.proj = nn.Sequential(nn.Linear(d_in, d), nn.ReLU(), nn.Dropout(dropout))
         self.gru = nn.GRU(d, d, batch_first=True, bidirectional=True)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out, _ = self.gru(self.proj(x))
-        return out                                # (N,T,2d)
+    def forward(self, x: torch.Tensor, content: torch.Tensor) -> torch.Tensor:
+        h = self.proj(x)
+        return content_window_gru(self.gru, h, content)   # (N,T,2d)
 
 
 class B2(nn.Module):
@@ -103,7 +103,7 @@ class B2(nn.Module):
         self.heads = _LadderHeads(3 * 2 * d, hidden, dropout, n_cls)
 
     def forward(self, feats: dict, content: torch.Tensor, avail: dict | None = None) -> dict:
-        pooled = [masked_pool(enc(self.drop(feats[name])), content)
+        pooled = [masked_pool(enc(self.drop(feats[name]), content), content)
                   for name, enc in zip(MODALITIES, self.enc)]
         return self.heads(self.drop(torch.cat(pooled, dim=-1)))
 
@@ -131,7 +131,7 @@ class B3(nn.Module):
     def forward(self, feats: dict, content: torch.Tensor, avail: dict | None = None) -> dict:
         if avail is None:                     # 仅调试用；主实验必传真实可用性
             avail = {m: content for m in MODALITIES}
-        E = {name: enc(self.drop(feats[name]))
+        E = {name: enc(self.drop(feats[name]), content)
              for name, enc in zip(MODALITIES, self.enc)}
         A = {name: self.pre_attn[i](E[name])          # 128 → 64（注意力工作空间）
              for i, name in enumerate(MODALITIES)}
@@ -201,7 +201,7 @@ class MRFN(nn.Module):
                 z[m] = self.proj[i](zero_fill(feats[m], avail[m]))      # B3 语义
         E, A = {}, {}
         for i, m in enumerate(MODALITIES):
-            e, _ = self.gru[i](z[m])
+            e = content_window_gru(self.gru[i], z[m], content)
             E[m] = e
             A[m] = self.pre_attn[i](e)
         branch = {}
