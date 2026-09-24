@@ -169,12 +169,14 @@ class MRFN(nn.Module):
                  d: int = 64, hidden: int = 64, dropout: float = 0.3, n_cls: int = 3,
                  n_heads: int = 2, t_grid: int = 50,
                  use_missing_state: bool = True, use_masked_attn: bool = True,
-                 use_gate: bool = True, gate_ln: bool = False):
+                 use_gate: bool = True, gate_ln: bool = False,
+                 evidence_pool: bool = False):
         super().__init__()
         self.use_missing_state = use_missing_state
         self.use_masked_attn = use_masked_attn
         self.use_gate = use_gate
         self.gate_ln = gate_ln
+        self.evidence_pool = evidence_pool
         self.proj = nn.ModuleList([nn.Sequential(nn.Linear(din, d), nn.ReLU(),
                                                  nn.Dropout(dropout))
                                    for din in (d_text, d_audio, d_vision)])
@@ -215,7 +217,11 @@ class MRFN(nn.Module):
                     kv = avail[kvm] if self.use_masked_attn else content
                     parts.append(self.attn[i](A[qm], A[kvm], content, kv))
             branch[m] = self.drop(torch.cat(parts, dim=-1))      # (N,T,256)
-        h_tilde = {m: masked_pool(branch[m], content) for m in MODALITIES}
+        h_tilde = {}
+        for m in MODALITIES:
+            # Round 5 证据池化：只在可用位上池化，缺失位不再稀释证据强度
+            keep = (content & avail[m]) if self.evidence_pool else content
+            h_tilde[m] = masked_pool(branch[m], keep)
         ssum = content.sum(dim=1).clamp(min=1.0)
         cov = torch.stack([(content & avail[m]).sum(dim=1) / ssum for m in MODALITIES], dim=1)
         if self.use_gate:
@@ -235,6 +241,7 @@ class MRFN(nn.Module):
 MODEL_REGISTRY.update({
     "MRFN": MRFN,
     "MRFN_gLN": lambda **kw: MRFN(gate_ln=True, **kw),
+    "MRFN_ePool": lambda **kw: MRFN(evidence_pool=True, **kw),
     "MRFN_noState": lambda **kw: MRFN(use_missing_state=False, **kw),
     "MRFN_noMaskAttn": lambda **kw: MRFN(use_masked_attn=False, **kw),
     "MRFN_noGate": lambda **kw: MRFN(use_gate=False, **kw),
