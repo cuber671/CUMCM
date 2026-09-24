@@ -75,6 +75,13 @@ def main() -> int:
     m4 = load_json(T.OUTDIR / "summary.json")          # M4 根目录 = MRFN 增强训练
     mrfn_clean = runs["MRFN_clean"]
 
+    # M4 旧版 summary 无 masked_S_mean：由 D_S 派生（S_r = S_clean·(1−D_S)）
+    m4_masked_S = m4.get("masked_S_mean")
+    if not m4_masked_S:
+        sc = m4["clean"]["S"]["mean"]
+        m4_masked_S = {k: round(sc * (1 - d), 6)
+                       for k, d in m4["masked_D_S_mean"].items()}
+
     def masked_s_from_ladder(model):
         sc = ladder["ladder"][model]["clean"]["S"]["mean"]
         d = ladder["ladder"][model]["D_S_mean"]
@@ -98,7 +105,7 @@ def main() -> int:
                             "source": "MRFN_clean"},
             "train_aug": {"eval_clean_S": m4["clean"]["S"]["mean"],
                           "eval_missing_S": round(float(np.mean(list(
-                              m4["masked_S_mean"].values()))), 6),
+                              m4_masked_S.values()))), 6),
                           "source": "M4 summary"},
         },
     }

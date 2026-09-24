@@ -254,6 +254,8 @@ def run(args) -> int:
         per_seed = [json.loads((out_dir / f"{args.model}_seed{s}" / "result.json").read_text())
                     for s in seeds]
         if has_gates:
+            if "bert" not in model_cache:       # 续跑路径未经过训练分支，需补载
+                model_cache["bert"] = load_frozen_bert(DEFAULT_MODEL_PATH, device=device)
             for s_i, r in zip(seeds, per_seed):
                 model = MODEL_REGISTRY[args.model](dropout=args.dropout).to(device)
                 model.load_state_dict(torch.load(
