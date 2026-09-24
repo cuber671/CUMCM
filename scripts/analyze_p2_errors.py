@@ -18,9 +18,15 @@
 summary.md}。自检：per-seed clean acc 与 result.json 偏差 ≤0.01（跨进程重推理存在
 cuDNN workspace 相关的浮点漂移，实测 |Δ|≤2/728 样本；test 终评同为重推理路径，
 本分析与之一致，漂移逐 seed 记录于 repro_check）。
+
+--mrfn-plus：对 R8 采纳变体（runs/p2/bft/，BERT 解冻 1 层微调）做同一套分析。
+关键差异：文本特征必须来自**逐 seed 微调后的 BertTextEncoder**（bert_checkpoint.pt）
+现场编码，不得使用冻结 BERT 的 clean_text_trainvalid.npy 缓存；产物文件名加
+_mrfn_plus 后缀，不覆盖 M4 版。
 """
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -39,6 +45,7 @@ from train_p2_ladder import build_tensors  # noqa: E402
 
 from src.p2.data import load_aligned  # noqa: E402
 from src.p2.models import MODEL_REGISTRY  # noqa: E402
+from src.p2.text_mask import BertTextEncoder  # noqa: E402
 
 STATE = ROOT / "runs/p2/data/m1a_state.npz"
 CKPT = ROOT / "runs/p2/mrfn"
@@ -89,7 +96,13 @@ def infer_valid(model, va, batch=256):
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mrfn-plus", action="store_true",
+                    help="分析 R8 采纳变体（runs/p2/bft，微调后 BERT 编码文本）")
+    args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    suffix = "_mrfn_plus" if args.mrfn_plus else ""
+    ckpt_dir = (ROOT / "runs/p2/bft") if args.mrfn_plus else CKPT
     OUT.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
                             text=True, cwd=ROOT).stdout.strip()
@@ -134,14 +147,23 @@ def main() -> int:
                  "Z2_strong": abs_rl >= 0.5}
 
     # ---- B 模型侧：3 seeds clean valid 推理 ----
+    tb_valid = np.asarray(att["valid"]["text_bert"]) if args.mrfn_plus else None
     per_seed, repro = [], []
     for seed in SEEDS:
         model = MODEL_REGISTRY["MRFN"](dropout=0.3).to(device)
         model.load_state_dict(torch.load(
-            CKPT / f"MRFN_seed{seed}" / "checkpoint.pt", weights_only=True))
+            ckpt_dir / f"MRFN_seed{seed}" / "checkpoint.pt", weights_only=True))
+        if args.mrfn_plus:   # 微调后编码器现场编码，覆盖冻结缓存特征
+            enc = BertTextEncoder(unfreeze_last=1).to(device)
+            enc.load_state_dict(torch.load(
+                ckpt_dir / f"MRFN_seed{seed}" / "bert_checkpoint.pt",
+                weights_only=True))
+            enc.eval()
+            with torch.no_grad():
+                va["text"] = enc(torch.as_tensor(tb_valid).to(device))
         lo, rg = infer_valid(model, va)
         m = metrics(y, rl, lo, rg)
-        ref = json.loads((CKPT / f"MRFN_seed{seed}" / "result.json").read_text())
+        ref = json.loads((ckpt_dir / f"MRFN_seed{seed}" / "result.json").read_text())
         d_acc = m["acc"] - ref["valid_metrics"]["acc"]
         d_S = m["S"] - ref["valid_metrics"]["S"]
         assert abs(d_acc) <= 0.01 and abs(d_S) <= 0.005, \
@@ -276,10 +298,10 @@ def main() -> int:
         "C_posthoc_valid_only": {"reg_sign_rule": reg_rule, "arbitration": arb,
                                  "ensemble": ensemble, "class_bias_calibration": calib}}
 
-    (OUT / "error_attribution.json").write_text(
+    (OUT / f"error_attribution{suffix}.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
     np.savez_compressed(
-        OUT / "per_seed_predictions.npz", ids=ids, y_cls=y, rl=rl,
+        OUT / f"per_seed_predictions{suffix}.npz", ids=ids, y_cls=y, rl=rl,
         **{f"seed{s}_logits": p["logits"] for s, p in zip(SEEDS, per_seed)},
         **{f"seed{s}_reg": p["reg"] for s, p in zip(SEEDS, per_seed)})
 
@@ -319,7 +341,7 @@ def main() -> int:
         "- 结论：决策侧全部手段 |Δ| ≤ 1pp，远小于弱情感带错误体量——"
         "继续堆决策侧方法无意义，错误主体在 Z0/Z1 的特征不可分性",
     ]
-    (OUT / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (OUT / f"summary{suffix}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines), flush=True)
     print("\n产物:", OUT, flush=True)
     return 0
