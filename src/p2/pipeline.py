@@ -43,3 +43,16 @@ def zero_fill(x: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
     a_b = a > 0.5 if a.dtype != torch.bool else a
     return torch.where(a_b[..., None], x,
                        torch.zeros((), dtype=x.dtype, device=x.device))
+
+
+def forward_fill(x: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
+    """前向填充（§8.5 基线）：a=0 位取时间上最后可用位的值；前无可用位 → 0。
+    注：z-score 空间中"均值填充"≡ 零填充（标准化后均值=0），无需单独实现。"""
+    n, t = a.shape
+    ar = torch.arange(t, device=x.device)[None, :]
+    last = torch.cummax(torch.where(a > 0.5 if a.dtype != torch.bool else a,
+                                    ar, torch.full_like(ar, -1)), dim=1).values
+    safe = last.clamp(min=0)
+    filled = torch.gather(x, 1, safe[..., None].expand(-1, -1, x.shape[-1]))
+    return torch.where((last >= 0)[..., None], filled,
+                       torch.zeros((), dtype=x.dtype, device=x.device))

@@ -61,7 +61,7 @@ def build_tensors(att: dict, state, device: str) -> dict:
 
 
 def forward_model(model, name, feats, content, avail):
-    if name in ("B3", "MRFN"):                  # 可用性约束模型（MRFN 必传）
+    if name == "B3" or name.startswith("MRFN"):  # 可用性约束模型（MRFN 系必传）
         return model(feats, content, avail)
     return model(feats, content)
 
@@ -134,7 +134,8 @@ def train_one_seed(name, seed, tensors, args, device, out_dir: Path):
 
 
 @torch.no_grad()
-def eval_masked(model, name, t_va, va_np, entry, z, clean_S, bert, device):
+def eval_masked(model, name, t_va, va_np, entry, z, clean_S, bert, device,
+                fill_fn=zero_fill):
     per_k = []
     for k in range(entry["k"]):
         a_map, need_enc = {}, False
@@ -147,14 +148,14 @@ def eval_masked(model, name, t_va, va_np, entry, z, clean_S, bert, device):
             a_map[m] = t_va[f"o_{m}"] & ~b
             if m == "text" and bool(b.any()):
                 need_enc = True
-        feats = {"audio": zero_fill(t_va["audio"], a_map["audio"]),
-                 "vision": zero_fill(t_va["vision"], a_map["vision"])}
+        feats = {"audio": fill_fn(t_va["audio"], a_map["audio"]),
+                 "vision": fill_fn(t_va["vision"], a_map["vision"])}
         if need_enc:
             ids = mask_text_tokens(va_np["text_bert"], z[f"b_{k}_t"], CONTRACT)
             tf = torch.from_numpy(encode_text(ids, bert, CONTRACT, batch_size=256)).to(device)
         else:
             tf = t_va["text"]
-        feats["text"] = zero_fill(tf, a_map["text"])
+        feats["text"] = fill_fn(tf, a_map["text"])
         o = forward_model(model, name, feats, t_va["content"], a_map)
         per_k.append(metrics(va_np["y_cls"], va_np["y_reg"],
                              o["logits"].cpu().numpy(), o["reg"].cpu().numpy()))

@@ -10,6 +10,7 @@ from torch import nn
 
 from src.p2.modules import (AvailabilityAttention, MissingEmbedding, count_params,
                             masked_pool)
+from src.p2.pipeline import zero_fill
 
 MODALITIES = ("text", "audio", "vision")
 
@@ -157,55 +158,81 @@ class MRFN(nn.Module):
     q_m 退化并入特征（接口保留）；g = softmax(MLP([h̃_t;h̃_a;h̃_v;c_t;c_a;c_v]))；
     融合 h = Σ g_m·h̃_m，双头作用于 h。forward 必传 avail = {模态: (N,T) bool}。
     返回附加 "gates" (N,3) 与 "coverage" (N,3) 供 §8.4 门控验证。
+
+    消融开关（§9，默认全开 = MRFN 完整版）：
+      use_missing_state=False → 退回零填充输入（B3 语义），无缺失嵌入；
+      use_masked_attn=False   → 注意力不屏蔽不可用证据（K/V 仅按 content mask）；
+      use_gate=False          → 无门控融合，三模态 h̃ concat → 双头（此时无 gates 输出）。
     """
 
     def __init__(self, d_text: int = 768, d_audio: int = 74, d_vision: int = 35,
                  d: int = 64, hidden: int = 64, dropout: float = 0.3, n_cls: int = 3,
-                 n_heads: int = 2, t_grid: int = 50):
+                 n_heads: int = 2, t_grid: int = 50,
+                 use_missing_state: bool = True, use_masked_attn: bool = True,
+                 use_gate: bool = True):
         super().__init__()
+        self.use_missing_state = use_missing_state
+        self.use_masked_attn = use_masked_attn
+        self.use_gate = use_gate
         self.proj = nn.ModuleList([nn.Sequential(nn.Linear(din, d), nn.ReLU(),
                                                  nn.Dropout(dropout))
                                    for din in (d_text, d_audio, d_vision)])
-        self.miss = MissingEmbedding(d, t_grid, n_mod=3)
+        if use_missing_state:
+            self.miss = MissingEmbedding(d, t_grid, n_mod=3)
         self.gru = nn.ModuleList([nn.GRU(d, d, batch_first=True, bidirectional=True)
                                   for _ in MODALITIES])
         self.pre_attn = nn.ModuleList([nn.Linear(2 * d, d) for _ in MODALITIES])
         self.attn = nn.ModuleList([AvailabilityAttention(d, n_heads) for _ in B3.DIRS])
         self.drop = nn.Dropout(dropout)
         branch_dim = 4 * d                      # BiGRU(2d) + 两个注意力方向(2×d)
-        gate_in = 3 * branch_dim + 3            # [h̃_t;h̃_a;h̃_v] + [c_t;c_a;c_v]
-        self.gate = nn.Sequential(nn.Linear(gate_in, hidden), nn.ReLU(),
-                                  nn.Dropout(dropout), nn.Linear(hidden, 3))
-        self.heads = _LadderHeads(branch_dim, hidden, dropout, n_cls)
+        if use_gate:
+            gate_in = 3 * branch_dim + 3        # [h̃_t;h̃_a;h̃_v] + [c_t;c_a;c_v]
+            self.gate = nn.Sequential(nn.Linear(gate_in, hidden), nn.ReLU(),
+                                      nn.Dropout(dropout), nn.Linear(hidden, 3))
+        self.heads = _LadderHeads(branch_dim if use_gate else 3 * branch_dim,
+                                  hidden, dropout, n_cls)
 
     def forward(self, feats: dict, content: torch.Tensor, avail: dict) -> dict:
         z = {}
         for i, m in enumerate(MODALITIES):
-            h = self.proj[i](feats[m])
-            z[m] = self.miss(h, avail[m], i)            # §6.1（内部 δ 门控）
-        E, A, branch = {}, {}, {}
+            if self.use_missing_state:
+                z[m] = self.miss(self.proj[i](feats[m]), avail[m], i)   # §6.1
+            else:
+                z[m] = self.proj[i](zero_fill(feats[m], avail[m]))      # B3 语义
+        E, A = {}, {}
         for i, m in enumerate(MODALITIES):
             e, _ = self.gru[i](z[m])
             E[m] = e
             A[m] = self.pre_attn[i](e)
+        branch = {}
         for m in MODALITIES:
             parts = [E[m]]
             for i, (qm, kvm) in enumerate(B3.DIRS):
                 if qm == m:
-                    parts.append(self.attn[i](A[qm], A[kvm], content, avail[kvm]))
+                    kv = avail[kvm] if self.use_masked_attn else content
+                    parts.append(self.attn[i](A[qm], A[kvm], content, kv))
             branch[m] = self.drop(torch.cat(parts, dim=-1))      # (N,T,256)
         h_tilde = {m: masked_pool(branch[m], content) for m in MODALITIES}
         ssum = content.sum(dim=1).clamp(min=1.0)
         cov = torch.stack([(content & avail[m]).sum(dim=1) / ssum for m in MODALITIES], dim=1)
-        g = torch.softmax(self.gate(torch.cat(list(h_tilde.values()) + [cov], dim=-1)), dim=-1)
-        h = sum(g[:, i][:, None] * h_tilde[m] for i, m in enumerate(MODALITIES))
-        out = self.heads(h)
-        out["gates"] = g
+        if self.use_gate:
+            g = torch.softmax(self.gate(torch.cat(list(h_tilde.values()) + [cov], dim=-1)),
+                              dim=-1)
+            h = sum(g[:, i][:, None] * h_tilde[m] for i, m in enumerate(MODALITIES))
+            out = self.heads(h)
+            out["gates"] = g
+        else:
+            out = self.heads(self.drop(torch.cat(list(h_tilde.values()), dim=-1)))
         out["coverage"] = cov
         return out
 
 
-MODEL_REGISTRY.update({"MRFN": MRFN})
+MODEL_REGISTRY.update({
+    "MRFN": MRFN,
+    "MRFN_noState": lambda **kw: MRFN(use_missing_state=False, **kw),
+    "MRFN_noMaskAttn": lambda **kw: MRFN(use_masked_attn=False, **kw),
+    "MRFN_noGate": lambda **kw: MRFN(use_gate=False, **kw),
+})
 
 
 def build_model(name: str, **kw) -> nn.Module:
