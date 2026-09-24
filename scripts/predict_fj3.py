@@ -29,11 +29,12 @@ from train_p2_mrfn import load_stats  # noqa: E402  （训练器内的统计量�
 from src.p2.data import CONTRACT  # noqa: E402
 from src.p2.models import MODEL_REGISTRY  # noqa: E402
 from src.p2.pipeline import zscore_reset  # noqa: E402
-from src.p2.text_mask import (DEFAULT_MODEL_PATH, to_int_token_ids,  # noqa: E402
-                              encode_text, load_frozen_bert)
+from src.p2.text_mask import (BertTextEncoder, DEFAULT_MODEL_PATH,  # noqa: E402
+                              mask_text_tokens, to_int_token_ids)
 
 ATT3 = ROOT / "data/附件3-模态缺失特征样本/对齐版本"
-CKPT = ROOT / "runs/p2/mrfn/MRFN_seed{seed}/checkpoint.pt"
+CKPT = ROOT / "runs/p2/bft/MRFN_seed{seed}/checkpoint.pt"
+BERT_CKPT = ROOT / "runs/p2/bft/MRFN_seed{seed}/bert_checkpoint.pt"
 OUT = ROOT / "runs/p2/fj3"
 MODS = ("text", "audio", "vision")
 
@@ -103,7 +104,7 @@ def main() -> int:
     add("samples_with_joint_missing", n_any == 27, {"got": n_any, "expect": 27})
 
     # ---- 2. 组装 batch 输入 ----
-    tb_all = np.concatenate([r["tb"] for r in rows], axis=0)             # (30,3,50) int64
+    tb_all_np = np.concatenate([r["tb"] for r in rows], axis=0)          # (30,3,50) int64
     content_all = np.concatenate([r["content"] for r in rows], axis=0)
     o_a = content_all & ~(np.concatenate([r["miss_a"] for r in rows], 0))
     o_v = content_all & ~(np.concatenate([r["miss_v"] for r in rows], 0))
@@ -113,27 +114,32 @@ def main() -> int:
     vis_n = zscore_reset(np.concatenate([r["vision"] for r in rows], 0),
                          stats_l["vision"]["mean"], stats_l["vision"]["std"], o_v, "att3.vision")
 
-    bert = load_frozen_bert(DEFAULT_MODEL_PATH, device=device)
-    text_f = encode_text(tb_all, bert, CONTRACT, batch_size=30)
-
     def to_t(x):
         return torch.from_numpy(np.ascontiguousarray(x)).to(device)
 
-    T = {"text": to_t(text_f), "audio": to_t(aud_n), "vision": to_t(vis_n),
-         "content": torch.from_numpy(content_all).to(device)}
-    avail = {"text": T["content"],
+    aud_t = to_t(aud_n)
+    vis_t = to_t(vis_n)
+    content_t = torch.from_numpy(content_all).to(device)
+    tb_t = to_t(tb_all_np)
+    avail = {"text": content_t,
              "audio": torch.from_numpy(o_a).to(device),
              "vision": torch.from_numpy(o_v).to(device)}
 
-    # ---- 3. MRFN 三种子集成推理 ----
+    # ---- 3. MRFN+（BFT）三种子集成推理：每 seed 用自己的微调 BERT 编码文本 ----
     prob_sum, reg_sum, gates_sum, n_models = None, None, None, 0
     per_seed_pred = []
     for seed in (1, 2, 3):
+        be = BertTextEncoder(unfreeze_last=2).to(device)
+        be.load_state_dict(torch.load(str(BERT_CKPT).format(seed=seed), weights_only=True))
+        be.eval()
         model = MODEL_REGISTRY["MRFN"](dropout=0.3).to(device)
         model.load_state_dict(torch.load(str(CKPT).format(seed=seed), weights_only=True))
         model.eval()
         with torch.no_grad():
-            o = model(T, T["content"], avail)
+            text_f = be(tb_t).cpu().numpy()
+        feats = {"text": to_t(text_f), "audio": aud_t, "vision": vis_t}
+        with torch.no_grad():
+            o = model(feats, content_t, avail)
         p = torch.softmax(o["logits"], dim=-1)
         prob_sum = p if prob_sum is None else prob_sum + p
         reg_sum = o["reg"] if reg_sum is None else reg_sum + o["reg"]
@@ -148,11 +154,11 @@ def main() -> int:
     conf = prob.max(1)
 
     # ---- 4. text-only 对照（a、v 全不可用）----
-    avail_to = {"text": T["content"],
-                "audio": torch.zeros_like(T["content"]),
-                "vision": torch.zeros_like(T["content"])}
+    avail_to = {"text": content_t,
+                "audio": torch.zeros_like(content_t),
+                "vision": torch.zeros_like(content_t)}
     with torch.no_grad():
-        o_to = model(T, T["content"], avail_to)
+        o_to = model({"text": to_t(text_f), "audio": aud_t, "vision": vis_t}, content_t, avail_to)
     to_pred = o_to["logits"].argmax(1).cpu().numpy()
     agree = (to_pred == pred_polarity).astype(int)
     av_miss = np.array([(x["miss_audio"]["miss_rate"] + x["miss_vision"]["miss_rate"]) / 2

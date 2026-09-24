@@ -100,15 +100,19 @@ def preload_train_masks(lib_index):
     return comps, comp_mods
 
 
-def make_batch_avail(rng, idx_np, idx, tr, comps, training):
+def make_batch_avail(rng, idx_np, idx, tr, comps, training, w_b=None):
     if training == "clean":
         return {m: tr[f"o_{m}"][idx] for m in MODS}, None, "D"
     names = list(MIXTURE)
     comp = names[int(rng.choice(4, p=[MIXTURE[c] for c in names]))]
     if comp == "D":
         return {m: tr[f"o_{m}"][idx] for m in MODS}, None, comp
-    entry = comps[comp][int(rng.integers(len(comps[comp])))]
-    b_map = entry[int(rng.integers(len(entry)))]
+    entries = comps[comp]
+    if comp == "B" and w_b is not None:
+        ei = int(rng.choice(len(entries), p=w_b))
+    else:
+        ei = int(rng.integers(len(entries)))
+    b_map = entries[ei][int(rng.integers(len(entries[ei])))]   # 抽实例 k
     avail, b_t = {}, None
     for m in MODS:
         if m in b_map:

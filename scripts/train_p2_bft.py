@@ -107,7 +107,40 @@ def main() -> int:
                and any(t_.startswith("eval") for t_ in e["tags"])]
 
     def batch_aug(rng, idx_np, idx):
-        return make_batch_avail(rng, idx_np, idx, tensors["train"], comps, "mixture")
+        return make_batch_avail(rng, idx_np, idx, tensors["train"], comps, "mixture",
+                                w_b=w_b)
+
+    # ---- Round 8 S_select 选点条目（valid，k=0）----
+    def ventry(key):
+        e = next(e for e in lib_index["entries"] if e["split"] == "valid"
+                 and f"{e['mechanism']}/{e['modalities']}/rate{e['rate']}/{e['position']}" == key)
+        return np.load(ROOT / "runs/p2/mask_library" / e["path"])
+    z40 = ventry("mcar/t/rate40/random"); z80 = ventry("mcar/t/rate80/random")
+    zj = ventry("joint/av/rate40/random")
+    b_t40 = torch.from_numpy(z40["b_0_t"]).to(device)
+    b_t80 = torch.from_numpy(z80["b_0_t"]).to(device)
+    b_ja = torch.from_numpy(zj["b_0_a"]).to(device)
+    b_jv = torch.from_numpy(zj["b_0_v"]).to(device)
+
+    @torch.no_grad()
+    def eval_sel_entry(model, be, t_va, device, text_mask=None, b_a=None, b_v=None):
+        avail = {m: t_va[f"o_{m}"] for m in MODS}
+        if text_mask is not None:
+            tm = text_mask.to(device).bool()
+            avail["text"] = t_va["o_text"] & ~tm
+            ids = mask_text_tokens(t_va["text_bert"].cpu().numpy(),
+                                   text_mask.cpu().numpy(), CONTRACT)
+            feats_text = be(torch.from_numpy(ids).to(device))
+        else:
+            feats_text = be(t_va["text_bert"])
+        feats = {"text": feats_text, "audio": t_va["audio"], "vision": t_va["vision"]}
+        if b_a is not None:
+            avail["audio"] = t_va["o_audio"] & ~b_a.to(device).bool()
+        if b_v is not None:
+            avail["vision"] = t_va["o_vision"] & ~b_v.to(device).bool()
+        o = model(feats, t_va["content"], avail)
+        return metrics(t_va["y_cls"].cpu().numpy(), t_va["y_reg"].cpu().numpy(),
+                       o["logits"].cpu().numpy(), o["reg"].cpu().numpy())["S"]
 
     results = []
     for seed in (1, 2, 3):
@@ -152,16 +185,24 @@ def main() -> int:
                 opt.step()
                 tot += float(loss.detach()); nb += 1
             vm = eval_clean(model, bert_enc, va, device)
-            log.append({"epoch": epoch, "train_loss": round(tot / nb, 6), **vm})
-            if vm["S"] > best:
-                best, bad = vm["S"], 0
+            with torch.no_grad():
+                s_t40 = eval_sel_entry(model, bert_enc, va, device, text_mask=b_t40)
+                s_t80 = eval_sel_entry(model, bert_enc, va, device, text_mask=b_t80)
+                s_j40 = eval_sel_entry(model, bert_enc, va, device,
+                                       b_a=b_ja, b_v=b_jv)
+            s_sel = 0.50 * vm["S"] + 0.25 * s_t40 + 0.15 * s_t80 + 0.10 * s_j40
+            log.append({"epoch": epoch, "train_loss": round(tot / nb, 6),
+                        "S_select": round(s_sel, 6), **vm})
+            if s_sel > best:
+                best, bad = s_sel, 0
                 best_state = {k: v.cpu() for k, v in model.state_dict().items()}
                 best_bstate = {k: v.cpu() for k, v in bert_enc.state_dict().items()}
             else:
                 bad += 1
                 if bad >= args.patience:
                     break
-            print(f"  ep{epoch} S={vm['S']:.4f} loss={tot/nb:.4f}", flush=True)
+            print(f"  ep{epoch} S={vm['S']:.4f} S_select={s_sel:.4f} loss={tot/nb:.4f}",
+                  flush=True)
         model.load_state_dict(best_state)
         bert_enc.load_state_dict(best_bstate)
         sd = out_dir / f"MRFN_seed{seed}"
