@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +43,7 @@ O_KEY = {"text": "o_text", "audio": "o_audio", "vision": "o_vision"}
 MIXTURE = {"A": 0.35, "B": 0.40, "C": 0.15, "D": 0.10}
 LETTER = {"text": "t", "audio": "a", "vision": "v"}
 model_cache = {}
+SCHEDULE_SEED = 20260924
 TEXT_K0_CACHE = ROOT / "runs/p2/text_encode"
 BERT_REVISION = "86b5e0934494bd15c9632b12f734a8a67f723594"
 BERT_WEIGHT_SHA = "68d45e234eb4a928074dfd868cead0219ab85354cc53d20e772753c6bb9169d3"
@@ -80,8 +82,10 @@ def build_k0_masked_cache(entry, tb_valid, ids_valid, bert, device):
     return feats, b_t
 
 
-def preload_train_masks(lib_index) -> dict:
+def preload_train_masks(lib_index):
+    """返回 (comps, comp_mods)：分分量条目实例 + 各条目模态串（B 分量加权用）。"""
     comps = {"A": [], "B": [], "C": []}
+    comp_mods = {"A": [], "B": [], "C": []}
     for e in lib_index["entries"]:
         if e["split"] != "train":
             continue
@@ -92,7 +96,8 @@ def preload_train_masks(lib_index) -> dict:
                          if f"b_{k}_{LETTER[mm]}" in z.files}
                         for k in range(e["k"])]
                 comps[comp].append(inst)
-    return comps
+                comp_mods[comp].append(e["modalities"])
+    return comps, comp_mods
 
 
 def make_batch_avail(rng, idx_np, idx, tr, comps, training):
@@ -160,7 +165,54 @@ def eval_robust_entry(model, va, spec, device) -> float:
                    o["logits"].cpu().numpy(), o["reg"].cpu().numpy())["S"]
 
 
-def train_one_seed(name, seed, tensors, tb_train_np, comps, args, device,
+def epoch_assignment(rng, n):
+    """每 epoch 严格 A35/B40/C15/D10（round 计数，D 找平），shuffle 后顺序切块。
+    返回 (assign, perm)：assign 为逐样本分量，perm 供批顺序（调度种子驱动，跨模型共享）。"""
+    counts = {"A": int(round(0.35 * n)), "B": int(round(0.40 * n)),
+              "C": int(round(0.15 * n))}
+    counts["D"] = n - sum(counts.values())
+    assign = np.empty(n, dtype="<U1")
+    perm = rng.permutation(n)
+    pos = 0
+    for c in ("A", "B", "C", "D"):
+        assign[perm[pos:pos + counts[c]]] = c
+        pos += counts[c]
+    return assign, perm
+
+
+def make_per_sample_avail(rng, idx_np, idx, tr, comps, assign, w_b):
+    """逐样本独立抽分量/条目/实例（epoch 内严格配比）；返回 batch avail + b_t 行堆叠。"""
+    b_stacks = {m: [] for m in MODS}
+    comps_used = []
+    for i_global in idx_np:
+        c = assign[i_global]
+        comps_used.append(c)
+        if c == "D":
+            for m in MODS:
+                b_stacks[m].append(np.zeros(50, dtype=np.uint8))
+            continue
+        entries = comps[c]
+        if c == "B":
+            ei = int(rng.choice(len(entries), p=w_b))
+        else:
+            ei = int(rng.integers(len(entries)))
+        inst = entries[ei][int(rng.integers(len(entries[ei])))]   # k ∈ [0, K=8)
+        for m in MODS:
+            letter = LETTER[m]
+            row = inst[letter][i_global] if letter in inst \
+                else np.zeros(50, dtype=np.uint8)
+            b_stacks[m].append(row)
+    avail = {}
+    b_t = None
+    for m in MODS:
+        b = torch.from_numpy(np.stack(b_stacks[m])).to(tr["content"].device)
+        if m == "text":
+            b_t = b
+        avail[m] = tr[f"o_{m}"][idx] & ~b.bool()
+    return avail, b_t, comps_used
+
+
+def train_one_seed(name, seed, tensors, tb_train_np, comps, comp_mods, args, device,
                    out_dir: Path, bert, fill_fn, sel_specs=None):  # noqa: C901
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -174,16 +226,34 @@ def train_one_seed(name, seed, tensors, tb_train_np, comps, args, device,
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
     best, best_state, bad = -1.0, None, 0
     log, comp_counts = [], {"A": 0, "B": 0, "C": 0, "D": 0}
+    aug_sample = getattr(args, "aug_sampling", "batch") == "sample"
+    w_b = None
+    if aug_sample:
+        w_b = np.array([2.0 if "t" in md else 1.0
+                        for md in comp_mods["B"]], dtype=np.float64)
+        w_b /= w_b.sum()
     for epoch in range(1, args.epochs + 1):
         model.train()
-        rng = np.random.default_rng(seed * 100000 + epoch)
-        perm = rng.permutation(n)
+        if aug_sample:
+            sched_rng = np.random.default_rng([SCHEDULE_SEED, epoch])
+            assign, perm_np = epoch_assignment(sched_rng, n)
+        else:
+            rng = np.random.default_rng(seed * 100000 + epoch)
+            perm_np = rng.permutation(n)
+        idx_all = torch.from_numpy(perm_np).long().to(device)
         tot, nb = 0.0, 0
         for i in range(0, n, args.batch_size):
-            idx_np = perm[i:i + args.batch_size]
-            idx = torch.from_numpy(idx_np).long().to(device)
-            avail, b_t, comp = make_batch_avail(rng, idx_np, idx, tr, comps, args.training)
-            comp_counts[comp] += 1
+            idx_np = perm_np[i:i + args.batch_size]
+            idx = idx_all[i:i + args.batch_size]
+            if aug_sample:
+                avail, b_t, comps_used = make_per_sample_avail(
+                    sched_rng, idx_np, idx, tr, comps, assign, w_b)
+                for c, v in Counter(comps_used).items():
+                    comp_counts[c] += v
+            else:
+                avail, b_t, comp = make_batch_avail(rng, idx_np, idx, tr, comps,
+                                                    args.training)
+                comp_counts[comp] += 1
             feats = build_feats(tr, idx, avail, b_t, fill_fn, tb_train_np, bert)
             out = model(feats, tr["content"][idx], avail)
             loss = ce(out["logits"], tr["y_cls"][idx]) + \
@@ -344,7 +414,7 @@ def run(args) -> int:
         print("已从 result.json 复载 per-seed 结果", flush=True)
     else:
         tb_train_np = np.asarray(att["train"]["text_bert"])
-        comps = preload_train_masks(lib_index)
+        comps, comp_mods = preload_train_masks(lib_index)
         bert = load_frozen_bert(DEFAULT_MODEL_PATH, device=device)
         model_cache["bert"] = bert
         sel_specs = None
@@ -367,7 +437,7 @@ def run(args) -> int:
             print("鲁棒早停已启用（契约 §8 Round 1 公式，k=0 选择实例）", flush=True)
         for seed in seeds:
             print(f"== {args.model} seed {seed} ==", flush=True)
-            r = train_one_seed(args.model, seed, tensors, tb_train_np, comps, args,
+            r = train_one_seed(args.model, seed, tensors, tb_train_np, comps, comp_mods, args,
                                device, out_dir, bert, fill_fn, sel_specs)
             model = MODEL_REGISTRY[args.model](dropout=args.dropout).to(device)
             model.load_state_dict(torch.load(
@@ -451,6 +521,9 @@ def main() -> int:
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--selection", default="clean", choices=["clean", "robust"],
                     help="robust = 契约 §8 Round 1 的 S_select 早停准则")
+    ap.add_argument("--aug-sampling", default="batch", choices=["batch", "sample"],
+                    help="sample = Round 2 逐样本分量抽样（调度种子独立）")
+    ap.add_argument("--schedule-seed", type=int, default=SCHEDULE_SEED)
     ap.add_argument("--from-results", action="store_true")
     return run(ap.parse_args())
 
