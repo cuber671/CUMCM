@@ -4,8 +4,9 @@
   1. 逐条读取附件3 对齐版（text_bert float32 → 整数性/值域断言 → int64，契约 §1.4）；
   2. 推导结构掩码与自然缺失（o = content & 行非零；联合缺失 = a、v 同位零行）；
   3. 文本现场重编码（frozen BERT）；audio/vision 用 train 统计量标准化；
-  4. MRFN 三种子概率/回归集成 → pred_polarity / pred_intensity / gates；
-  5. text-only 对照（a、v 全不可用）→ 分歧分析（a/v 缺失越高应越趋同，门控旁证）。
+  4. MRFN+（R8 BFT-lite）三种子概率/回归集成 → pred_polarity / pred_intensity / gates；
+  5. text-only 对照（a、v 全不可用）→ 分歧分析（a/v 缺失越高应越趋同，门控旁证）；
+  6. 置信度温度校准（T 在 valid 上 NLL 拟合，见 runs/p2/ensemble_check/）。
 纪律（方案 §10）：无标签，不做任何精度声明，不反推标签。
 产物：runs/p2/fj3/附件3_预测结果.csv + 附件3_行为分析.json。
 """
@@ -40,6 +41,10 @@ MODS = ("text", "audio", "vision")
 
 # 方案 §1 预注册核对数
 PREREG = {"n_files": 30, "n_content": 605, "n_joint_zero": 131, "max_joint_rate": 0.50}
+
+# 温度标定系数（2026-09-24 valid NLL 拟合，MRFN+ 3-seed 集成口径）：
+# ECE 0.0424→0.0347（−18%），argmax 逐位不变；作用于集成平均概率 p^(1/T) 重归一。
+TEMP = 1.2142
 
 
 def run_lengths(mask_row: np.ndarray) -> list:
@@ -129,7 +134,7 @@ def main() -> int:
     prob_sum, reg_sum, gates_sum, n_models = None, None, None, 0
     per_seed_pred = []
     for seed in (1, 2, 3):
-        be = BertTextEncoder(unfreeze_last=2).to(device)
+        be = BertTextEncoder(unfreeze_last=1).to(device)   # R8 = 解冻 1 层
         be.load_state_dict(torch.load(str(BERT_CKPT).format(seed=seed), weights_only=True))
         be.eval()
         model = MODEL_REGISTRY["MRFN"](dropout=0.3).to(device)
@@ -151,7 +156,23 @@ def main() -> int:
     reg = (reg_sum / n_models).cpu().numpy()
     gates = (gates_sum / n_models).cpu().numpy()
     pred_polarity = prob.argmax(1)
-    conf = prob.max(1)
+    # ---- 温度校准（只动置信度，不动预测）：p_cal ∝ p^(1/T) 重归一 ----
+    prob_cal = prob ** (1.0 / TEMP)
+    prob_cal /= prob_cal.sum(1, keepdims=True)
+    assert (prob_cal.argmax(1) == pred_polarity).all(), "校准改变 argmax，违反预注册"
+    # 跨进程重推理保护：极性/强度必须与现有交付逐行一致，否则中止不写盘
+    old_csv = OUT / "附件3_预测结果.csv"
+    if old_csv.exists():
+        import csv as _csv
+        with open(old_csv, encoding="utf-8-sig") as f:
+            old = list(_csv.DictReader(f))
+        diff_pol = sum(int(r["pred_polarity"]) != int(p) for r, p in zip(old, pred_polarity))
+        diff_int = sum(abs(float(r["pred_intensity"]) - float(x)) > 5e-4
+                       for r, x in zip(old, reg))
+        assert diff_pol == 0 and diff_int == 0, \
+            f"重推理与现有交付不一致（极性 {diff_pol} 行/强度 {diff_int} 行），中止"
+        print(f"✅ 重推理与现有交付逐行一致（30/30），仅重算置信度列")
+    conf = prob_cal.max(1)
 
     # ---- 4. text-only 对照（a、v 全不可用）----
     avail_to = {"text": content_t,
@@ -192,7 +213,11 @@ def main() -> int:
     hi, lo = np.argsort(av_miss)[len(av_miss) // 2:], np.argsort(av_miss)[:len(av_miss) // 2]
     behavior = {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "model": "MRFN（3 seeds 概率/回归集成）", "n": len(files),
+        "model": "MRFN+（R8 BFT-lite：BERT 解冻 1 层 + B 分量 t×2 + S_select 选点，"
+                 "五门槛全过采纳；3 seeds 概率/回归集成）",
+        "calibration": {"temperature": TEMP, "fitted_on": "valid NLL（MRFN+ 集成口径）",
+                        "ece": "0.0424→0.0347", "argmax_invariant": True},
+        "n": len(files),
         "checks": checks, "all_checks_pass": all(c["ok"] for c in checks),
         "missing_overview": {
             "joint_zero_rows": n_joint, "content_rows": n_content,
