@@ -118,3 +118,8 @@ def test_registry_and_param_ordering():
     assert p_nogate != p_full and p_nogate > 0
     for name in ("MRFN_noState", "MRFN_noMaskAttn", "MRFN_noGate"):
         assert name in MODEL_REGISTRY
+
+
+def test_s_select_formula():
+    """Round 1 鲁棒早停公式（契约 §8 预注册）。"""
+    from src.p2  # noqa

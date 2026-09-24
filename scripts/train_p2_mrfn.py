@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from train_p2_b0 import MAJORITY_ACC, ensure_text_cache, metrics  # noqa: E402
 from train_p2_ladder import build_tensors, eval_masked  # noqa: E402
 
-from src.p2.data import CONTRACT, load_aligned  # noqa: E402
+from src.p2.data import CONTRACT, load_aligned, sha256_file  # noqa: E402
 from src.p2.models import MODEL_REGISTRY, count_params  # noqa: E402
 from src.p2.pipeline import forward_fill, load_stats, zero_fill  # noqa: E402
 from src.p2.text_mask import (DEFAULT_MODEL_PATH, encode_text,  # noqa: E402
@@ -41,6 +42,42 @@ O_KEY = {"text": "o_text", "audio": "o_audio", "vision": "o_vision"}
 MIXTURE = {"A": 0.35, "B": 0.40, "C": 0.15, "D": 0.10}
 LETTER = {"text": "t", "audio": "a", "vision": "v"}
 model_cache = {}
+TEXT_K0_CACHE = ROOT / "runs/p2/text_encode"
+BERT_REVISION = "86b5e0934494bd15c9632b12f734a8a67f723594"
+BERT_WEIGHT_SHA = "68d45e234eb4a928074dfd868cead0219ab85354cc53d20e772753c6bb9169d3"
+SEL_ENTRIES = {"text40": "mcar/t/rate40/random",
+               "text80": "mcar/t/rate80/random",
+               "joint40": "joint/av/rate40/random"}
+
+
+def s_select_compute(s_clean, s_t40, s_t80, s_j40):
+    """Round 1 鲁棒早停准则（契约 §8 预注册公式）。"""
+    return 0.50 * s_clean + 0.25 * s_t40 + 0.15 * s_t80 + 0.10 * s_j40
+
+
+def build_k0_masked_cache(entry, tb_valid, ids_valid, bert, device):
+    """text 条目 k=0 的 [MASK] 重编码缓存（带五元指纹，指纹不符即重建）。"""
+    tag = f"valid_{entry['mechanism']}_{entry['modalities']}_rate{entry['rate']}_k0"
+    path = TEXT_K0_CACHE / f"{tag}.npy"
+    meta_path = path.with_suffix(".meta.json")
+    z = np.load(LIB / entry["path"])
+    b_t = z["b_0_t"]
+    ids_sha = hashlib.sha256("\n".join(ids_valid).encode()).hexdigest()
+    lib_sha = sha256_file(LIB / "library_index.json")
+    aligned_sha = json.loads((ROOT / "runs/p2/data/m1a_report.json").read_text())[
+        "source"]["sha256"]
+    meta = {"ids_sha": ids_sha, "lib_index_sha": lib_sha, "aligned_sha": aligned_sha,
+            "entry": {"mechanism": entry["mechanism"], "modalities": entry["modalities"],
+                      "rate": entry["rate"], "position": entry["position"]}, "k": 0,
+            "bert_revision": BERT_REVISION, "bert_weight_sha256": BERT_WEIGHT_SHA}
+    if path.exists() and meta_path.exists() \
+            and json.loads(meta_path.read_text()) == meta:
+        return np.load(path), b_t
+    masked = mask_text_tokens(tb_valid, b_t, CONTRACT)
+    feats = encode_text(masked, bert, CONTRACT, batch_size=256)
+    np.save(path, feats)
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+    return feats, b_t
 
 
 def preload_train_masks(lib_index) -> dict:
@@ -91,8 +128,40 @@ def build_feats(t, idx, avail, b_t, fill_fn, tb_np, bert):
             for m in MODS}
 
 
+@torch.no_grad()
+def eval_robust_entry(model, va, spec, device) -> float:
+    """选择条目的 k=0 一次前向 → S。
+    spec = {"b": {letter: b_arr}, "feats_text": 被掩码文本的缓存特征或 None}。
+    text 条目用缓存特征 + a_text 屏蔽；joint 条目只屏蔽 a/v。"""
+    model.eval()
+    bmap = spec["b"]
+    avail, feats = {}, {}
+    for m in MODS:
+        letter = LETTER[m]
+        b_arr = bmap.get(letter)
+        if b_arr is None:
+            avail[m] = va[f"o_{m}"]
+            if m == "text" and spec.get("feats_text") is not None:
+                feats[m] = torch.from_numpy(
+                    np.ascontiguousarray(spec["feats_text"])).to(va["content"].device)
+            else:
+                feats[m] = va[m]
+        else:
+            b = torch.from_numpy(b_arr).to(va["content"].device)
+            avail[m] = va[f"o_{m}"] & ~b.bool()
+            if m == "text" and spec.get("feats_text") is not None:
+                base = torch.from_numpy(
+                    np.ascontiguousarray(spec["feats_text"])).to(va["content"].device)
+            else:
+                base = va[m]
+            feats[m] = zero_fill(base, avail[m])
+    o = model(feats, va["content"], avail)
+    return metrics(va["y_cls"].cpu().numpy(), va["y_reg"].cpu().numpy(),
+                   o["logits"].cpu().numpy(), o["reg"].cpu().numpy())["S"]
+
+
 def train_one_seed(name, seed, tensors, tb_train_np, comps, args, device,
-                   out_dir: Path, bert, fill_fn):
+                   out_dir: Path, bert, fill_fn, sel_specs=None):  # noqa: C901
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -125,9 +194,17 @@ def train_one_seed(name, seed, tensors, tb_train_np, comps, args, device,
             opt.step()
             tot += float(loss.detach()); nb += 1
         vm = eval_clean(model, va, device)
-        log.append({"epoch": epoch, "train_loss": round(tot / nb, 6), **vm})
-        if vm["S"] > best:
-            best, bad = vm["S"], 0
+        if sel_specs is not None:
+            s_t40 = eval_robust_entry(model, va, sel_specs["text40"], device)
+            s_t80 = eval_robust_entry(model, va, sel_specs["text80"], device)
+            s_j40 = eval_robust_entry(model, va, sel_specs["joint40"], device)
+            s_sel = s_select_compute(vm["S"], s_t40, s_t80, s_j40)
+        else:
+            s_sel = vm["S"]
+        log.append({"epoch": epoch, "train_loss": round(tot / nb, 6),
+                    "S_select": round(s_sel, 6), **vm})
+        if s_sel > best:
+            best, best_epoch, bad = s_sel, epoch, 0
             best_state = {k: v.cpu() for k, v in model.state_dict().items()}
         else:
             bad += 1
@@ -139,8 +216,8 @@ def train_one_seed(name, seed, tensors, tb_train_np, comps, args, device,
     torch.save(best_state, sd / "checkpoint.pt")
     final = eval_clean(model, va, device)
     return {"model": name, "seed": seed, "param_count": count_params(model),
-            "epochs_run": len(log),
-            "best_epoch": int(np.argmax([x["S"] for x in log]) + 1),
+            "epochs_run": len(log), "selection": getattr(args, "selection", "clean"),
+            "best_epoch": best_epoch,
             "best_S": best, "valid_metrics": final, "per_epoch": log,
             "mixture_realized": comp_counts}
 
@@ -266,14 +343,32 @@ def run(args) -> int:
                                                    lib_index, device)
         print("已从 result.json 复载 per-seed 结果", flush=True)
     else:
-        tb_train_np = np.asarray(att["train"]["text_bert"])  # noqa: F841
+        tb_train_np = np.asarray(att["train"]["text_bert"])
         comps = preload_train_masks(lib_index)
         bert = load_frozen_bert(DEFAULT_MODEL_PATH, device=device)
         model_cache["bert"] = bert
+        sel_specs = None
+        if getattr(args, "selection", "clean") == "robust":
+            by_key = {f"{e['mechanism']}/{e['modalities']}/rate{e['rate']}/{e['position']}": e
+                      for e in lib_index["entries"] if e["split"] == "valid"}
+            ids_valid = list(att["valid"]["id"])
+            tb_valid = np.asarray(att["valid"]["text_bert"])
+            sel_specs = {}
+            for tag_, key in SEL_ENTRIES.items():
+                e = by_key[key]
+                if tag_ == "joint40":
+                    z = np.load(LIB / e["path"])
+                    sel_specs[tag_] = {"b": {"a": z["b_0_a"], "v": z["b_0_v"]},
+                                       "feats_text": None}
+                else:
+                    feats, b_t = build_k0_masked_cache(e, tb_valid, ids_valid,
+                                                       bert, device)
+                    sel_specs[tag_] = {"b": {"t": b_t}, "feats_text": feats}
+            print("鲁棒早停已启用（契约 §8 Round 1 公式，k=0 选择实例）", flush=True)
         for seed in seeds:
             print(f"== {args.model} seed {seed} ==", flush=True)
             r = train_one_seed(args.model, seed, tensors, tb_train_np, comps, args,
-                               device, out_dir, bert, fill_fn)
+                               device, out_dir, bert, fill_fn, sel_specs)
             model = MODEL_REGISTRY[args.model](dropout=args.dropout).to(device)
             model.load_state_dict(torch.load(
                 out_dir / f"{args.model}_seed{seed}" / "checkpoint.pt", weights_only=True))
@@ -354,6 +449,8 @@ def main() -> int:
     ap.add_argument("--dropout", type=float, default=0.3)
     ap.add_argument("--lambda-l1", type=float, default=1.0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--selection", default="clean", choices=["clean", "robust"],
+                    help="robust = 契约 §8 Round 1 的 S_select 早停准则")
     ap.add_argument("--from-results", action="store_true")
     return run(ap.parse_args())
 
