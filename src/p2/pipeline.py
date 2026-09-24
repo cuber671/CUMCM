@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import torch
 
 STATS_PATH = Path(__file__).resolve().parents[2] / "runs/p2/data/normalization_stats.npz"
 
@@ -34,3 +35,11 @@ def zscore_reset(x: np.ndarray, mean: np.ndarray, std: np.ndarray,
         n_bad = int((~np.isfinite(out)).sum())
         raise RuntimeError(f"{name} 标准化后在 o=1 位出现 NaN/Inf（{n_bad} 位）")
     return out.astype(np.float32)
+
+
+def zero_fill(x: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
+    """a=0 位精确置 0（B0–B3 阶梯输入约定：缺失位零填充；MRFN 换缺失嵌入 = M4 差异点）。
+    torch.where 实现，NaN 占位同样被清除。"""
+    a_b = a > 0.5 if a.dtype != torch.bool else a
+    return torch.where(a_b[..., None], x,
+                       torch.zeros((), dtype=x.dtype, device=x.device))
