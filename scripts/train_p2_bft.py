@@ -93,6 +93,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     device = args.device
     print(f"device={device} ft_layers={args.ft_layers} bert_lr={args.bert_lr}", flush=True)
+    seeds = [int(s) for s in args.seeds.split(",")]
 
     att = load_aligned()
     del att["test"]
@@ -143,7 +144,7 @@ def main() -> int:
                        o["logits"].cpu().numpy(), o["reg"].cpu().numpy())["S"]
 
     results = []
-    for seed in (1, 2, 3):
+    for seed in seeds:
         print(f"== seed {seed} ==", flush=True)
         torch.manual_seed(seed); np.random.seed(seed)
         torch.cuda.manual_seed_all(seed)
@@ -223,7 +224,7 @@ def main() -> int:
 
     # ---- 掩码库 31 条评测（每 seed 用自己的微调后 BERT 编码）----
     masked_D_S = {}
-    for seed in (1, 2, 3):
+    for seed in seeds:
         model = MODEL_REGISTRY["MRFN"](dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(out_dir / f"MRFN_seed{seed}" / "checkpoint.pt",
                                          weights_only=True))
@@ -283,7 +284,7 @@ def main() -> int:
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1),
                                           encoding="utf-8")
-    print("\n== clean（3 seeds 均值）==")
+    print(f"\n== clean（{len(seeds)} seeds 均值）==")
     print(json.dumps(summary["clean"], ensure_ascii=False, indent=1))
     print("DONE")
     return 0
