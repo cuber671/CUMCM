@@ -99,3 +99,37 @@ def encode_text(text_bert_int: np.ndarray, model: torch.nn.Module,
     if not np.isfinite(res).all():
         raise RuntimeError("BERT 输出含 NaN/Inf")
     return res
+
+
+class BertTextEncoder(torch.nn.Module):
+    """可解冻的 BERT 文本编码器（Round 7：最后 N 层参与训练，其余冻结）。
+
+    - 默认 unfreeze_last=0 等价于冻结前向；
+    - 解冻层保持低学习率（调用方配置参数组，建议 5e-5）；
+    - BERT 内部保持 eval（dropout 关闭）：小样本下关闭随机失活更稳；
+    - forward 直接接收 (N,3,T) 整型 text_bert（支持 autograd，供微调反向传播）。
+    """
+
+    def __init__(self, model_path: Path = DEFAULT_MODEL_PATH, unfreeze_last: int = 0):
+        super().__init__()
+        from transformers import AutoModel
+        self.bert = AutoModel.from_pretrained(str(model_path), local_files_only=True)
+        for p in self.bert.parameters():
+            p.requires_grad_(False)
+        n = max(0, int(unfreeze_last))
+        n_layers = len(self.bert.encoder.layer)
+        if n > n_layers:
+            raise ValueError(f"unfreeze_last={n} 超过总层数 {n_layers}")
+        for layer in self.bert.encoder.layer[-n:] if n else []:
+            for p in layer.parameters():
+                p.requires_grad_(True)
+        self.unfreeze_last = n
+        self.bert.eval()
+
+    def unfrozen_parameters(self):
+        return [p for p in self.bert.parameters() if p.requires_grad]
+
+    def forward(self, tb_int: torch.Tensor) -> torch.Tensor:
+        batch = {"input_ids": tb_int[:, 0], "attention_mask": tb_int[:, 1],
+                 "token_type_ids": tb_int[:, 2]}
+        return self.bert(**batch).last_hidden_state
