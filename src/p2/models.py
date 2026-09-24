@@ -8,7 +8,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from src.p2.modules import AvailabilityAttention, count_params, masked_pool
+from src.p2.modules import (AvailabilityAttention, MissingEmbedding, count_params,
+                            masked_pool)
 
 MODALITIES = ("text", "audio", "vision")
 
@@ -144,6 +145,67 @@ class B3(nn.Module):
 
 
 MODEL_REGISTRY.update({"B1": B1, "B2": B2, "B3": B3})
+
+
+class MRFN(nn.Module):
+    """缺失感知可靠融合网络（方案 §6）= B3 + 显式缺失状态编码 + 可靠性门控。
+
+    §6.1 输入端：z = p_i + x_eff + (1−δ)·e^m（MissingEmbedding 原语，内部门控，
+    a=0 位的 x 不进计算图——取代阶梯的 zero_fill 约定，这是与 B3 的受控差异点 1）。
+    §6.2 交互：与 B3 相同的 6 方向可用性约束注意力（差异点 2 之前先有 §6.1）。
+    §6.3 融合：c_m = Σ s·δ / Σ s（覆盖率高证据）；附件2 无 quality 字段，
+    q_m 退化并入特征（接口保留）；g = softmax(MLP([h̃_t;h̃_a;h̃_v;c_t;c_a;c_v]))；
+    融合 h = Σ g_m·h̃_m，双头作用于 h。forward 必传 avail = {模态: (N,T) bool}。
+    返回附加 "gates" (N,3) 与 "coverage" (N,3) 供 §8.4 门控验证。
+    """
+
+    def __init__(self, d_text: int = 768, d_audio: int = 74, d_vision: int = 35,
+                 d: int = 64, hidden: int = 64, dropout: float = 0.3, n_cls: int = 3,
+                 n_heads: int = 2, t_grid: int = 50):
+        super().__init__()
+        self.proj = nn.ModuleList([nn.Sequential(nn.Linear(din, d), nn.ReLU(),
+                                                 nn.Dropout(dropout))
+                                   for din in (d_text, d_audio, d_vision)])
+        self.miss = MissingEmbedding(d, t_grid, n_mod=3)
+        self.gru = nn.ModuleList([nn.GRU(d, d, batch_first=True, bidirectional=True)
+                                  for _ in MODALITIES])
+        self.pre_attn = nn.ModuleList([nn.Linear(2 * d, d) for _ in MODALITIES])
+        self.attn = nn.ModuleList([AvailabilityAttention(d, n_heads) for _ in B3.DIRS])
+        self.drop = nn.Dropout(dropout)
+        branch_dim = 4 * d                      # BiGRU(2d) + 两个注意力方向(2×d)
+        gate_in = 3 * branch_dim + 3            # [h̃_t;h̃_a;h̃_v] + [c_t;c_a;c_v]
+        self.gate = nn.Sequential(nn.Linear(gate_in, hidden), nn.ReLU(),
+                                  nn.Dropout(dropout), nn.Linear(hidden, 3))
+        self.heads = _LadderHeads(branch_dim, hidden, dropout, n_cls)
+
+    def forward(self, feats: dict, content: torch.Tensor, avail: dict) -> dict:
+        z = {}
+        for i, m in enumerate(MODALITIES):
+            h = self.proj[i](feats[m])
+            z[m] = self.miss(h, avail[m], i)            # §6.1（内部 δ 门控）
+        E, A, branch = {}, {}, {}
+        for i, m in enumerate(MODALITIES):
+            e, _ = self.gru[i](z[m])
+            E[m] = e
+            A[m] = self.pre_attn[i](e)
+        for m in MODALITIES:
+            parts = [E[m]]
+            for i, (qm, kvm) in enumerate(B3.DIRS):
+                if qm == m:
+                    parts.append(self.attn[i](A[qm], A[kvm], content, avail[kvm]))
+            branch[m] = self.drop(torch.cat(parts, dim=-1))      # (N,T,256)
+        h_tilde = {m: masked_pool(branch[m], content) for m in MODALITIES}
+        ssum = content.sum(dim=1).clamp(min=1.0)
+        cov = torch.stack([(content & avail[m]).sum(dim=1) / ssum for m in MODALITIES], dim=1)
+        g = torch.softmax(self.gate(torch.cat(list(h_tilde.values()) + [cov], dim=-1)), dim=-1)
+        h = sum(g[:, i][:, None] * h_tilde[m] for i, m in enumerate(MODALITIES))
+        out = self.heads(h)
+        out["gates"] = g
+        out["coverage"] = cov
+        return out
+
+
+MODEL_REGISTRY.update({"MRFN": MRFN})
 
 
 def build_model(name: str, **kw) -> nn.Module:

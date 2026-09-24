@@ -61,7 +61,7 @@ def build_tensors(att: dict, state, device: str) -> dict:
 
 
 def forward_model(model, name, feats, content, avail):
-    if name == "B3":
+    if name in ("B3", "MRFN"):                  # 可用性约束模型（MRFN 必传）
         return model(feats, content, avail)
     return model(feats, content)
 
