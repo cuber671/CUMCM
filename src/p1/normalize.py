@@ -11,7 +11,7 @@ wordpiece 序列（与附件2 同构，标点位置存在）。映射按"字符�
 import re
 
 _TAIL = set(",.:;!?')%]>…。，；：！？'")
-_HEAD = set('(“{"[$#«¿¡')
+_HEAD = set('(“{[$#«¿¡')
 _AMBI = set('"-–—')
 _SPECIAL = {"[CLS]", "[SEP]", "[PAD]"}
 
@@ -36,12 +36,14 @@ def normalize_transcript(text: str) -> str:
 def punct_class(token: str) -> str | None:
     """继承类别：tail / head / ambi / punct（未登记纯标点）/ None（含词字符）。"""
     frag = token[2:] if token.startswith("##") else token
+    # 先保留左右弯引号方向：左引号是 head，右引号 canonical 后按 ambi。
+    if frag in _HEAD:
+        return "head"
+    frag = _canonical(frag)
     if re.search(r"[\w']", frag) and frag != "'":
         return None
     if frag in _TAIL:
         return "tail"
-    if frag in _HEAD:
-        return "head"
     if frag in _AMBI:
         return "ambi"
     return "punct"  # 未登记标点（如 ^）：位置规则挂靠，见 build_wp_word_map
@@ -87,7 +89,7 @@ def build_wp_word_map(
             anomalies.append(f"wp{tid} [UNK]")
             continue
         frag = _canonical(tok[2:] if tok.startswith("##") else tok)
-        cls = punct_class(_canonical(tok))
+        cls = punct_class(tok)
 
         if buf == "" and cls is not None:  # 独立标点，不消费
             if cls in ("tail", "ambi") and entries:

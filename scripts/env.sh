@@ -22,7 +22,8 @@ export TORCH_HOME="$CUMCM_ROOT/cache/torch"
 #   ln -s "$CUMCM_ROOT/cache/py-feat" "$HOME/.py-feat"
 
 # 首次下载完成、revision 验证通过后打开，防止后续静默联网拉新版本：
-# export HF_HUB_OFFLINE=1
+# 2026-09-23 已验证：bert sha256 一致、wav2vec2/py-feat 权重齐全 → 正式启用
+export HF_HUB_OFFLINE=1
 
 # bert-base-uncased model.safetensors sha256 已验证（vs 官方 LFS pointer）：
 # 68d45e234eb4a928074dfd868cead0219ab85354cc53d20e772753c6bb9169d3

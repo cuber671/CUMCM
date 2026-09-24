@@ -9,6 +9,10 @@
   → 以 binomtest 重建同签名包装，返回 p 值。
 - numpy 2.x 移除 np.ComplexWarning（移至 np.exceptions）→ 原位别名。
 """
+from functools import lru_cache
+import os
+from pathlib import Path
+
 import numpy as np
 import scipy.stats
 
@@ -43,3 +47,17 @@ if not hasattr(_tio, "read_video"):
             "人脸检测用 Detector.detect_image 逐帧调用。"
         )
     _tio.read_video = _read_video_compat
+
+
+@lru_cache(maxsize=2)
+def get_detector(device="cpu"):
+    """Return the project-configured Py-Feat detector.
+
+    The import is deliberately kept behind this compatibility module so every
+    pipeline entry point applies the numpy/scipy/torchvision shims first.
+    """
+    root = Path(__file__).resolve().parents[1]
+    os.environ.setdefault("TORCH_HOME", str(root / "cache" / "torch"))
+    from feat import Detector
+
+    return Detector(device=device)
