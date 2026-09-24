@@ -122,4 +122,8 @@ def test_registry_and_param_ordering():
 
 def test_s_select_formula():
     """Round 1 鲁棒早停公式（契约 §8 预注册）。"""
-    from src.p2  # noqa
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from train_p2_mrfn import s_select_compute
+    assert s_select_compute(1.0, 1.0, 1.0, 1.0) == 1.0
+    expect = 0.5 * 0.8 + 0.25 * 0.6 + 0.15 * 0.4 + 0.10 * 0.2
+    assert s_select_compute(0.8, 0.6, 0.4, 0.2) == pytest.approx(expect)
