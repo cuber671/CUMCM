@@ -738,6 +738,12 @@ A_w=\sum_{j\in w}\mathrm{IG}_j,
 
 %% ============ 附录 ============
 \appendix
+% 附录图表独立编号：图 A.1、表 A.1（避免沿用正文章节计数器出现"图 5.15"）
+\setcounter{figure}{0}\setcounter{table}{0}
+\makeatletter
+\renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}
+\renewcommand{\thetable}{\Alph{section}.\arabic{table}}
+\makeatother
 
 \clearpage
 \section{环境与复现}
