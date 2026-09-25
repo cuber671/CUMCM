@@ -87,6 +87,7 @@ def main() -> int:
         per_base = {}
         for kind in BASELINES:
             ig_sum, d_f = {m: {o: [] for o in ("cls", "reg")} for m in MODS}, {"cls": [], "reg": []}
+            per_seed_zero = {}
             for (model, be), seed in zip(ensemble, (1, 2, 3)):
                 with torch.no_grad():
                     x_feats = {"text": be(torch.from_numpy(st.text_bert).to(device)),
@@ -103,6 +104,9 @@ def main() -> int:
                 for m in MODS:
                     for o in ("cls", "reg"):
                         ig_sum[m][o].append(ig[m][o])
+                    # 审计修正：逐 seed（非均值后）检查阻断位归因
+                    per_seed_zero[m] = max(per_seed_zero.get(m, 0.0), float(max(
+                        np.abs(ig[m][o][~st.o[m][0]]).max() for o in ("cls", "reg"))))
             per_base[kind] = {
                 "ig": {m: {o: np.mean(ig_sum[m][o], axis=0).tolist() for o in ("cls", "reg")}
                        for m in MODS},
@@ -111,10 +115,8 @@ def main() -> int:
             for o in ("cls", "reg"):
                 tot = sum(np.mean(ig_sum[m][o], axis=0).sum() for m in MODS)
                 per_base[kind][f"gap_{o}"] = float(abs(tot - per_base[kind]["dF"][o]))
-            # 证据边界：不可用位（非 content ∪ content∧o=0）IG 应恒零（架构级）
-            per_base[kind]["zero_ig_outside_evidence"] = {
-                m: float(max(np.abs(np.mean(ig_sum[m][o], axis=0)[~st.o[m][0]]).max()
-                             for o in ("cls", "reg"))) for m in MODS}
+            # 证据边界：不可用位（非 content ∪ content∧o=0）IG 应恒零（架构级，逐 seed）
+            per_base[kind]["zero_ig_outside_evidence"] = per_seed_zero
 
         # 敏感性 Spearman（content 位）
         c = st.content[0]          # 只比 content 位（结构位恒 0，纳入只会制造平秩）

@@ -28,11 +28,13 @@
   积分近似误差按**逐样本**检验：|ΣIG − (F(x)−F(x′))| ≤ max(5%·|ΔF|, 1e-3)，
   分类（M2 集成预测类 logit）与回归分别报告。
 
-- **位置→原词聚合（P1 alpha 参与）**：P1 `build_grid` 的 `alpha` 与 `wp_word_map`
-  实测与附件4 存储网格 20/20 逐 token 对齐（含 #07/#18 截断样本）。α_j = 1/n_w
-  （词内均匀），词级归因取**质量守恒求和** A_w = Σ_{j∈w} a_j（保证词级完备性
-  Σ_w A_w = Σ_j a_j；α 决定位置→词的映射与词内均匀权）。special/padding 及
-  o=0 位永不作证据（架构级零归因，验收断言），截断未覆盖的词标记 uncovered。
+- **位置→原词聚合（P1 映射 + alpha 断言；数值 = 质量守恒求和）**：P1 `build_grid`
+  的 `wp_word_map` 与 `alpha` 实测与附件4 存储网格 20/20 逐 token 对齐（含
+  #07/#18 截断样本）。**alpha 的角色**：确定位置→词的归属、片数与截断覆盖，
+  并由函数断言词内均匀（α_j = 1/n_w）；**词级数值聚合 = 质量守恒求和**
+  A_w = Σ_{j∈w} a_j——α_j 数值不进入 A_w（均匀划分下 A_w 与 α 的具体取值无关，
+  Σ_w A_w = Σ_j a_j 保证词级完备性）。special/padding 及 o=0 位永不作证据
+  （架构级零归因，逐 seed 验收断言），截断未覆盖的词标记 uncovered。
 
 - **#13 vision 自然缺失**：o_v 全零 → 架构阻断 → IG_v ≡ 0（无证据案例，验收硬检）。
 """
@@ -176,9 +178,9 @@ def aggregate_words(pos_attr: np.ndarray, word_grid: dict,
                     content: np.ndarray) -> dict:
     """位置归因 → 原词聚合（P1 alpha 语义，质量守恒）。
 
-    A_w = Σ_{j∈w} a_j（词内求和，保证 Σ_w A_w = Σ_{content} a_j）；α 由
-    p1_word_grid 提供（词内均匀 1/n_w，函数内已断言）。special/padding/o=0 位
-    不参与（架构级零归因，由验收断言保证，此处仅统计 structural_leak）。
+    A_w = Σ_{j∈w} a_j（质量守恒求和，Σ_w A_w = Σ_{content} a_j）。
+    α（p1_word_grid 提供，词内均匀 1/n_w，函数内已断言）确定归属/片数/覆盖，
+    数值不进入 A_w。special/padding/o=0 位不参与（架构级零归因）。
     """
     flat = np.asarray(content).reshape(-1)
     wbp = word_grid["word_by_position"]
