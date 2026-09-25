@@ -25,7 +25,7 @@ v3 变更（相对 v2）：
   重复，后者含 A 胜 19/20 标注）；q3_gphi / q3_att4 及表 p3_gphi /
   p3_att4 / p3_shapley（并行会话产物，p3_shapley 因脚本 bug 未生成）
   一律不纳入正文正式目录，是否进附录待定。
-- 正文正式表合计 9 张：P1×1 + P2×4 + P3×4。
+- 正文正式表合计 10 张：一×1（附件总览）+ P1×1 + P2×4 + P3×4。
 
 ## 全局口径（所有章节必须一致，写作前过一遍）
 
@@ -42,7 +42,7 @@ v3 变更（相对 v2）：
 | 章 | 文件 | 状态 | 小节骨架 | 必引数字/图表 |
 |---|---|---|---|---|
 | 摘要 | 00-摘要.md | ☐ | 建模思路→三问方法→结果→创新点→关键词（≤2 页，最后写） | P1 100/100·cos=1.0；P2 67.45/68.64；P3 完备性 3e-8·A–E 过 |
-| 一 问题重述 | 01-问题重述.md | ☐ | 1.1 背景 1.2–1.4 三问重述 1.5 附件说明 | 附件2 3395/728/727；附件3 30 条；附件4 20 条 |
+| 一 问题重述 | 01-问题重述.md | ✔ | 1.1 背景 1.2–1.4 三问重述 1.5 附件说明 | 附件2 3395/728/727；附件3 30 条；附件4 20 条 |
 | 二 问题分析与总体技术路线 | 02-问题分析与技术路线.md | ◐ | 2.1 三问耦合（P1 坐标系=P2/P3 接口）2.2 各问路线一句话 2.3 公共纪律（契约/指纹/预注册） | **图1** g1_framework |
 | 三 模型假设与符号说明 | 03-模型假设与符号说明.md | ☐ | 3.1 模型假设 **H1–H10**（半开区间、20ms 帧、CLS+48+SEP 截断、严格零行代理、无标签附件、四种缺失机制、文本缺失无泄漏）3.2 符号表（o/b/a、v(S)、φ、IG、g、α、S_select、D_S、T=1.2142） | docs/实验假设与验证目标.md |
 | 四 问题一：多模态时序对齐模型的建立与求解 | 04-问题一.md | ◐ | 4.1 数据事实 4.2 统一坐标（语义网格/状态掩码/索引—时间映射）4.3 特征生成与边界规则 4.4 **对齐求解算法：CTC 强制对齐与失败分层处理**（插值放行/质量标记/人工核查清单）4.5 四指标验收与对题面回应 4.6 典型回放（自动回放） | audio 非零率 vs 99.915%；vision vs 94.473%；100/100·0 违例；7 条重叠逐位相等 cos=1.0；ok/review/rollback=43/33/24。图 q1_unified_coordinate / q1_semantic_grid / q1_acceptance_summary；表1 q1_acceptance_summary |
@@ -52,8 +52,9 @@ v3 变更（相对 v2）：
 | 参考文献 | 09-参考文献.md | ☐ | BERT/Shapley/IG(Sundararajan)/MOSEI/wav2vec2/ERASER/温度校准 | latex/reference.bib |
 | 附录 | 10-附录.md | ☐ | A 环境与复现 B 关键代码 C 附件3/4 CSV 样例 D 掩码库说明 E replay 自动回放图 | replay_×9；q3_del_ins/q3_gphi/q3_att4 备选 |
 
-## 图表资产清单（正文正式 = 12 图 9 表；编号由 LaTeX 顺排）
+## 图表资产清单（正文正式 = 12 图 10 表；编号由 LaTeX 顺排）
 
+- **一**：表 attachments（附件总览，1.5 节）
 - **图1** g1_framework（第二章）
 - **P1**：q1_unified_coordinate / q1_semantic_grid / q1_acceptance_summary + 表 q1_acceptance_summary
 - **P2**：q2_mrfn_architecture / q2_degradation / q2_scenario_heatmap / q2_fj3_behavior + 表 p2_ladder / transfer / ablation / final_test
