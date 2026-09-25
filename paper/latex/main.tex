@@ -522,20 +522,30 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 
 \section{问题三：可解释情感预测模型的建立与求解}
 %（素材：paper/draft/06-问题三.md 成稿 + docs/问题三实施步骤.md）
-\subsection{任务与两参照系}
-Shapley 用联盟级 $v(\emptyset)$（avail$\equiv$0）；IG 用条件特征基线
-（avail 固定自然观测 $o$），二者严格分名，见图~\ref{fig:q3-shapley}。
+\subsection{解释任务形式化与两套反事实参照分名}\label{subsec:q3-task}
+本节的数学任务是：将 1.4 节的可解释性定义形式化为可计算的输出规格与两级归因问题，并明确两套反事实参照的构造与适用边界。
+
+\textbf{解释对象与输出规格。}解释对象为问题二采纳的 MRFN+ 集成（冻结权重，三种子概率与回归平均）；解释框架不引入新的预测模型、不新增可训练参数，仅在预测器之上叠加归因层、验证层与证据回溯层。每条样本的解释输出五要素：极性与强度（模型预测，非真值）、各模态带符号贡献 $\varphi_m$、主要参考模态、关键证据（原词/语音时段/视觉区间）、证据的物理时间区间 $[t_s,t_e)$——其中后三者即 1.4 节"模态作用程度、主要参考模态、关键证据定位"的落地。
+
+\textbf{两级归因与两套参照分名。}模态级贡献由联盟博弈的精确 Shapley 值度量（\ref{subsec:q3-shapley}~节），位置级归因由积分梯度度量（\ref{subsec:q3-ig}~节）；二者使用不同的反事实参照、全篇严格分名：\textbf{联盟级 $v(\varnothing)$}——三模态全部标记为未观测的反事实状态——用于 Shapley；\textbf{条件特征基线}——保持自然观测状态、特征取缺失参照值——用于 IG。IG 不取联盟级参照的原因是结构性的：缺失感知架构在全部模态未观测时阻断一切特征梯度，位置归因恒为零（博弈退化为平凡），故位置级参照必须是"给定观测状态下的特征值基线"。两套参照的构造规则与 \ref{subsec:q2-missing}~节的合成缺失算子保持一致、可对应——联盟级参照对应整模态缺失的极端组合，条件特征基线对应文本 [MASK] 替换与音视置零的合成算子——使干预输入的状态与训练所见状态可对应。
+
+\textbf{H7（解释的分布基础）验证状态。}H7 预期"以观测状态为显式输入的训练，使解释的反事实干预输入落在训练分布附近"。可提供的证据是覆盖性论证：问题二训练缺失生成机制的\textbf{组合空间}覆盖三模态全部 8 种观测状态组合（\ref{subsec:q2-missing}~节各分量分别对应联合缺失、单/双模态随机缺失、整模态缺失与干净状态；各分量按配比在线抽样），Shapley 的联盟输入与 IG 的基线输入所对应的状态均在生成空间之内；但 H7 的预注册判据（归因保真度优于无缺失训练对照）所需的对照实验未执行。按预注册纪律如实报告：\textbf{H7 的预注册判据未完成验证，现有证据仅支持分布覆盖性}。
+
+\textbf{四项性质目标。}完备性（$\sum_m\varphi_m=v(N)-v(\varnothing)$ 精确成立，\ref{subsec:q3-shapley}~节）、保真性（按归因序删除的预测偏移显著大于随机序，\ref{subsec:q3-fid}~节）、一致性（门控信任与实际贡献趋势一致，\ref{subsec:q3-gphi}~节）、可回溯性（每个归因位可映射到证据与物理时间，\ref{subsec:q3-ig}、\ref{subsec:q3-att4}~节）。
+
+\subsection{模态级精确 Shapley 模型}\label{subsec:q3-shapley}
+%（6.2 正文待审阅定稿后接入；图 q3_shapley_evidence 保留于此）
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_shapley_evidence.pdf}
-  \caption{模态贡献—证据回溯（附件4，20 条）：左为带符号 Shapley 贡献
+  \caption{模态贡献——证据回溯（附件4，20 条）：左为带符号 Shapley 贡献
   $\varphi_m$ 与主导模态（text 18 / vision 2），右为 TOP-8 原词证据
-  （IG，条件特征基线）；附件4 无时间戳，词回溯用 P1 网格（20/20 对齐），
-  $[t_s,t_e)$ 时间回溯仅 P1 域内可用。}
+  （IG，条件特征基线）；附件4 未提供时间戳，词回溯经问题一网格完成
+  （20/20 对齐），$[t_s,t_e)$ 时间回溯在问题一坐标域内可用。}
   \label{fig:q3-shapley}
 \end{figure}
 
-\subsection{Shapley 联盟归因}
+
 完备性与方向统计见表~\ref{tab:p3-direction}、表~\ref{tab:p3-completeness}。
 \input{tables/p3_shapley_direction.tex}
 \input{tables/p3_completeness.tex}
