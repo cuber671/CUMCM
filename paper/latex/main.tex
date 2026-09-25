@@ -565,15 +565,39 @@ m^{*}=\arg\max_m\,\bigl|[\varphi_m^{cls}]_{\hat y}\bigr|,
 \input{tables/p3_shapley_direction.tex}
 \input{tables/p3_completeness.tex}
 
-\subsection{积分梯度位置归因}
-64 步中点积分逐样本 40/40 通过（max 相对误差 0.62\%），结构位泄漏为零，
-验证见图~\ref{fig:q3-igval}~与表~\ref{tab:p3-ig-validation}。
+\subsection{位置级积分梯度模型}\label{subsec:q3-ig}
+本节的数学任务是：将局部片段重要性形式化为沿可微路径的积分梯度，确定可微层级与基线，给出数值求积及其精度检验，并定义词级聚合与零泄漏性质。
+
+\textbf{可微层级与基线。}文本的积分梯度路径定义在编码器\textbf{输出嵌入层} $E\in\mathbb{R}^{50\times768}$（各种子使用其微调编码器、冻结求值），插值路径为
+\begin{equation}
+E(\tau)=E'+\tau\,(E-E'),\qquad \tau\in[0,1],
+\end{equation}
+绝不对离散子词编号做数值插值；语音/视觉路径定义在标准化连续特征上。统一公式中的 $x,x'$ 按模态取不同对象：文本取 $x=E$、$x'=E'$（输出嵌入及其基线），语音/视觉取 $x$ 为标准化特征、$x'$ 为对应基线值。可用掩码固定为自然观测（可用性判定含阈值切分、不可微，故不做掩码插值）。基线取 \ref{subsec:q3-task}~节分名的条件特征基线：文本为全部子词 [MASK] 重编码所得嵌入，语音/视觉取缺失参照值；敏感性检验另设零向量与训练均值两种基线。
+
+\textbf{积分梯度与数值求积。}积分梯度对\textbf{三种子集成的预测函数} $F$ 计算：分类目标取集成预测类的 logit，集成为三种子模型输出的均值函数，故其梯度等于各种子梯度之均值——与逐种子计算后平均在数学上等价；完备性检验的对象即该集成函数。位置 $j$ 的归因定义为
+\begin{equation}
+\mathrm{IG}_j=(x_j-x'_j)\int_0^1\frac{\partial F}{\partial x_j}\Bigl(x'+\tau(x-x')\Bigr)\,\mathrm{d}\tau,
+\end{equation}
+数值上采用 64 步中点 Riemann 求积（$\tau_k=(k-0.5)/64$）；强度目标取强度输出。
+
+\textbf{精度检验（表~\ref{tab:p3-ig-validation}）。}完备性残差按逐样本、逐输出检验：$|\sum_j\mathrm{IG}_j-\Delta F|\le\max(0.05|\Delta F|,\,10^{-3})$ 在 20 条样本 $\times$ 2 类输出共 40 项检验上全部通过，最大相对误差 0.62\%。求积规则经消融确定：32 步右端点在 6 个样本上超出阈值（最差 11.1\%），64 步中点将其压至 0.62\%。
+
+\textbf{基线敏感性。}基线敏感性按三对基线（缺失参照$\leftrightarrow$零向量、缺失参照$\leftrightarrow$训练均值、零向量$\leftrightarrow$训练均值）在内容位上的逐样本排序 Spearman 检验：各对、各模态的均值均 $\ge 0.96$，单样本最低 0.76（缺失参照$\leftrightarrow$零向量的视觉通道）。需要说明，语音/视觉的缺失参照与训练均值在标准化空间重合，该对比近同构（相关接近 1 为构造性）；实质性对比为文本三基线与缺失参照$\leftrightarrow$零向量，均值亦在 0.96 以上。
+
+\textbf{词级聚合。}位置归因经问题一映射聚合到原词：位置——原词映射对全部 20 条样本建立（含 2 条截断样本），词内均匀权 $\alpha_j=1/n_w$ 提供归属与权重；词级归因取\textbf{质量守恒求和}
+\begin{equation}
+A_w=\sum_{j\in w}\mathrm{IG}_j,
+\end{equation}
+保证词级完备性 $\sum_w A_w=\sum_j \mathrm{IG}_j$；被 50 位网格截断的整词标记为未覆盖（共 22 词），不生成证据。
+
+\textbf{零泄漏性质。}结构位（CLS/SEP/填充位）与不可用位的归因，在全部"3 基线 $\times$ 2 输出 $\times$ 3 模态 $\times$ 逐种子"组合下恒为零（逐位精确为 0）。这由 5.2 节机制保证：选择运算使不可用位不进入计算图、值侧屏蔽使其不作为证据，梯度不经由这些位置——零归因是架构级性质而非数值巧合：在本章的 IG 归因路径与 5.2 节架构下，缺失证据不进入位置归因。
+
+从图~\ref{fig:q3-igval}~可以看出：三种基线下的归因排序高度一致（与敏感性数值相符），积分完备性残差集中于远低于阈值的区间；图中关于 IG--LOO 一致性的对比（音视局部干预强一致、文本未达门槛）属于保真度检验范畴，在 \ref{subsec:q3-fid}~节展开。
 \input{tables/p3_ig_validation.tex}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_ig_validation.pdf}
-  \caption{IG 验证：三基线排序高度一致（$\bar\rho\ge 0.96$）；F 诊断——
-  a/v 局部干预下 IG--LOO 强一致，text 未达门槛。}
+  \caption{IG 验证：三基线排序高度一致（各对均值 $\bar\rho\ge 0.96$）；F 项诊断——音/视局部干预下 IG--LOO 强一致，文本未达门槛。}
   \label{fig:q3-igval}
 \end{figure}
 
