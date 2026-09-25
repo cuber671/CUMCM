@@ -26,6 +26,8 @@ from pathlib import Path
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+
+from figstyle import FONT_SIZE, HEAT_CMAP, MODEL_COLOR, POLARITY, configure
 import numpy as np
 import pandas as pd
 from matplotlib import font_manager
@@ -40,28 +42,12 @@ M5 = json.loads((RUNS / "m5/m5_summary.json").read_text())
 TS = json.loads((RUNS / "test_second/test_second_results.json").read_text())
 
 MODELS = ["B0", "B1", "B2", "B3", "MRFN"]
-MODEL_COLOR = {"B0": "#999999", "B1": "#CC79A7", "B2": "#009E73",
-               "B3": "#0072B2", "MRFN": "#D55E00"}
 RATES = [10, 20, 40, 60, 80]
-MOD_CN = {"t": "text", "a": "audio", "v": "vision"}
+MOD_CN = {"t": "文本", "a": "语音", "v": "视觉"}
 
 
 def configure_style() -> None:
-    import seaborn as sns
-    sns.set_theme(style="whitegrid", context="paper")
-    cjk = Path.home() / ".fonts/NotoSansSC-Regular.otf"
-    if cjk.is_file():
-        font_manager.fontManager.addfont(str(cjk))
-        family = font_manager.FontProperties(fname=str(cjk)).get_name()
-    else:
-        family = "DejaVu Sans"
-    mpl.rcParams.update({
-        "font.family": "sans-serif", "font.sans-serif": [family, "DejaVu Sans"],
-        "font.size": 8.5, "axes.titlesize": 9.0, "axes.labelsize": 8.5,
-        "xtick.labelsize": 7.5, "ytick.labelsize": 7.5,
-        "axes.unicode_minus": False, "pdf.fonttype": 42, "ps.fonttype": 42,
-        "savefig.bbox": "tight", "savefig.pad_inches": 0.08,
-    })
+    configure()
 
 
 def scenario_grid_keys() -> list[str]:
@@ -74,13 +60,16 @@ def scenario_grid_keys() -> list[str]:
     return keys
 
 
+POS_CN = {"head": "头", "mid": "中", "tail": "尾", "random": "随"}
+
+
 def short_label(key: str) -> str:
     fam, mods, rate, pos = key.split("/")
     if fam == "mcar":
-        return f"{mods}{int(rate[4:])}"
+        return f"{mods}@{int(rate[4:])}%"
     if fam == "block":
-        return f"b-{mods[:1]}-{pos[0]}"
-    return "joint-av"
+        return f"块{mods[:1]}{POS_CN[pos]}"
+    return "联合av@40"
 
 
 def plot_degradation() -> None:
@@ -95,13 +84,13 @@ def plot_degradation() -> None:
                     color=MODEL_COLOR[model], label=model)
         ax.set_xticks([0] + RATES)
         ax.set_xticklabels(["0", "10", "20", "40", "60", "80"])
-        ax.set_xlabel(f"{MOD_CN[mod]} 缺失率（%，0 = clean）")
-        ax.set_title(f"{MOD_CN[mod]} 缺失", fontsize=8.6)
-    axes[0].set_ylabel("综合指标 S（3-seed 均值）")
+        if ax is axes[-1]:
+            ax.set_xlabel(f"{MOD_CN[mod]} 缺失率（%，0=干净）")
+        ax.set_title(f"{MOD_CN[mod]} 缺失", loc="left", fontsize=FONT_SIZE["TITLE"])
+    axes[0].set_ylabel("综合分 $\\mathcal{S}$（三种子均值）")
     axes[0].set_ylim(0.46, 0.80)
     axes[0].legend(frameon=False, fontsize=6.4, ncol=1, loc="lower left",
                    handlelength=1.4, labelspacing=0.3)
-    fig.suptitle("缺失率—性能退化曲线（附件2 test，31 网格冻结协议）", y=1.03, fontsize=9.5)
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q2_degradation.pdf")
@@ -113,18 +102,18 @@ def plot_scenario_heatmap() -> None:
     keys = scenario_grid_keys()
     ds = np.array([[TF["models"][m]["masked_D_S_mean"][k] for k in keys] for m in MODELS])
     fig, ax = plt.subplots(figsize=(6.9, 2.3))
-    im = ax.imshow(ds, aspect="auto", cmap="Blues", vmin=0.0, vmax=max(0.22, ds.max()))
+    im = ax.imshow(ds, aspect="auto", cmap=HEAT_CMAP, vmin=0.0, vmax=max(0.22, ds.max()))
     ax.set_xticks(range(len(keys)))
-    ax.set_xticklabels([short_label(k) for k in keys], rotation=90, fontsize=5.2)
+    ax.set_xticklabels([short_label(k) for k in keys], rotation=90, fontsize=6.0)
     ax.set_yticks(range(len(MODELS)))
     ax.set_yticklabels(MODELS, fontsize=7.5)
     # 场景分组分隔线
     for x in (14.5, 17.5, 29.5):
         ax.axvline(x, color="white", lw=1.6)
-    for txt, x in [("MCAR 单模态", 6.5), ("双模态", 16), ("Block（40%）", 23.5), ("Joint", 30)]:
+    for txt, x in [("MCAR 单模态", 6.5), ("双模态", 16), ("Block（40%）", 23.5), ("联合缺失", 30)]:
         ax.text(x, -0.9, txt, ha="center", va="bottom", fontsize=6.2, color="#374151")
-    ax.set_title("31 缺失场景下的性能退化 $D_{\\mathcal{S}}$（3-seed 均值；颜色越深退化越大）",
-                 loc="left", fontsize=8.6, pad=14)
+    ax.set_title("31 场景 $D_{\\mathcal{S}}$（色深=退化大）",
+                 loc="left", fontsize=FONT_SIZE["TITLE"], pad=26)
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
     cbar.ax.tick_params(labelsize=6)
     cbar.set_label("$D_{\\mathcal{S}}$", fontsize=6.5)
@@ -256,10 +245,10 @@ def plot_fj3_behavior() -> None:
     ax.axhline(mo["joint_rate_mean"], color="#374151", lw=0.9, ls="--")
     ax.text(len(d) - 0.5, mo["joint_rate_mean"] + 0.012, f"均值 {mo['joint_rate_mean']:.3f}",
             ha="right", fontsize=6.2, color="#374151")
-    ax.set_xlabel("样本（按 joint 缺失率降序，红 = 困难样本 top-5）")
-    ax.set_ylabel("joint 缺失率")
+    ax.set_xlabel("样本（按联合缺失率降序，红 = 前 5 困难样本）")
+    ax.set_ylabel("联合缺失率")
     ax.set_ylim(0, 0.56)
-    ax.set_title("30 条样本 joint 缺失率（max 0.50）", loc="left", fontsize=8.4)
+    ax.set_title("逐样本联合缺失率（最大 0.50）", loc="left", fontsize=FONT_SIZE["TITLE"])
 
     # B：g_text vs a/v 平均缺失率（如实：无单调重分配）
     ax = axes[0, 1]
@@ -270,43 +259,42 @@ def plot_fj3_behavior() -> None:
     ax.plot(xs, k * xs + b, color="#C0392B", lw=1.0, zorder=2)
     ax.axhline(ga["gate_text_hi_av_missing"], xmin=0.52, xmax=0.98, color="#E69F00", lw=1.0)
     ax.axhline(ga["gate_text_lo_av_missing"], xmin=0.52, xmax=0.98, color="#009E73", lw=1.0)
-    ax.text(av.max() * 1.02, ga["gate_text_hi_av_missing"] - 0.018, f"hi {ga['gate_text_hi_av_missing']:.3f}",
+    ax.text(av.max() * 1.02, ga["gate_text_hi_av_missing"] - 0.018, f"高半区 {ga['gate_text_hi_av_missing']:.3f}",
             fontsize=6.0, va="center", color="#E69F00")
-    ax.text(av.max() * 1.02, ga["gate_text_lo_av_missing"] + 0.012, f"lo {ga['gate_text_lo_av_missing']:.3f}",
+    ax.text(av.max() * 1.02, ga["gate_text_lo_av_missing"] + 0.012, f"低半区 {ga['gate_text_lo_av_missing']:.3f}",
             fontsize=6.0, va="center", color="#009E73")
-    ax.set_xlabel("audio+vision 平均缺失率")
-    ax.set_ylabel("gate_text")
+    ax.set_xlabel("音视平均缺失率")
+    ax.set_ylabel("$g_{\\text{text}}$")
     ax.set_xlim(-0.02, 0.46)
     ax.set_ylim(0.30, 0.85)
-    ax.set_title("g_text 随 a/v 缺失：未见单调重分配", loc="left", fontsize=8.4)
+    ax.set_title("$g_{\\text{text}}$ 随音视缺失：未见单调重分配", loc="left", fontsize=FONT_SIZE["TITLE"])
     ax.text(0.03, 0.05, f"Spearman ρ={ga['spearman(av缺失率, gate_text)']:.3f}",
             transform=ax.transAxes, fontsize=6.2, color="#374151")
 
     # C：text-only 一致率 hi/lo（如实：未见趋同）
     ax = axes[1, 0]
     vals = [tc["agree_rate_low_av_missing"], tc["agree_rate_overall"], tc["agree_rate_high_av_missing"]]
-    bars = ax.bar(["低 a/v 缺失组", "全体", "高 a/v 缺失组"], vals,
+    bars = ax.bar(["低缺失组", "全体", "高缺失组"], vals,
                   color=["#009E73", "#999999", "#E69F00"], width=0.55)
     ax.bar_label(bars, fmt="%.3f", fontsize=7, padding=2)
     ax.set_ylim(0, 1.02)
-    ax.set_ylabel("全模态 vs text-only 预测一致率")
-    ax.set_title("一致率高缺失组更低：未见趋同", loc="left", fontsize=8.4)
+    ax.set_ylabel("全模型 vs text-only 预测一致率")
+    ax.set_title("一致率高缺失组更低：未见趋同", loc="left", fontsize=FONT_SIZE["TITLE"])
 
     # D：附件3 预测极性分布（30 条样本口径，非附件2 test）
     ax = axes[1, 1]
     vc = df["pred_polarity"].value_counts().reindex([0, 1, 2], fill_value=0)
-    ax.bar(["负", "中", "正"], vc.values, color=["#0072B2", "#999999", "#D55E00"], width=0.55)
+    ax.bar(["负", "中", "正"], vc.values, color=[POLARITY["负"], POLARITY["中"], POLARITY["正"]], width=0.55)
     for i, v in enumerate(vc.values):
         ax.text(i, v + 0.3, str(int(v)), ha="center", fontsize=7)
     ax.set_ylabel("样本数")
     ax.set_ylim(0, max(vc.values) * 1.25 + 1)
-    ax.set_title("预测极性分布（30 条，无标签仅行为）", loc="left", fontsize=8.4)
+    ax.set_title("预测极性分布", loc="left", fontsize=FONT_SIZE["TITLE"])
     cal = fj["calibration"]
-    ax.text(0.03, 0.90, f"温度 T={cal['temperature']:.4f}（valid NLL 拟合）\n"
-                        f"ECE {cal['ece'].split('→')[0]}→{cal['ece'].split('→')[1]}，"
+    ax.text(0.03, 0.90, f"温度 T={cal['temperature']:.4f}（valid 拟合）\n"
+                        f"校准误差 {cal['ece'].split('→')[0]}→{cal['ece'].split('→')[1]}，"
                         f"argmax 不变", transform=ax.transAxes, fontsize=6.2, color="#374151")
 
-    fig.suptitle("附件3 行为分析（MRFN+ 集成，无标签测试集：不做精度声明）", y=0.99, fontsize=9.5)
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q2_fj3_behavior.pdf")
