@@ -2,49 +2,47 @@ This is BibTeX, Version 0.99e (TeX Live 2026)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: main.aux
 The style file: gmcm.bst
-I found no \citation commands---while reading file main.aux
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
 Database file #1: reference.bib
-You've used 0 entries,
+You've used 11 entries,
             3957 wiz_defined-function locations,
-            850 strings with 6118 characters,
-and the built_in function-call counts, 54 in all, are:
-= -- 0
-> -- 0
-< -- 0
-+ -- 0
-- -- 0
-* -- 2
-:= -- 31
-add.period$ -- 0
-call.type$ -- 0
-change.case$ -- 0
-chr.to.int$ -- 0
-cite$ -- 0
-duplicate$ -- 0
-empty$ -- 1
-format.name$ -- 0
-if$ -- 2
+            906 strings with 8554 characters,
+and the built_in function-call counts, 77080 in all, are:
+= -- 718
+> -- 9323
+< -- 12235
++ -- 3334
+- -- 114
+* -- 389
+:= -- 10719
+add.period$ -- 11
+call.type$ -- 11
+change.case$ -- 11
+chr.to.int$ -- 3016
+cite$ -- 11
+duplicate$ -- 205
+empty$ -- 507
+format.name$ -- 228
+if$ -- 19898
 int.to.chr$ -- 1
-int.to.str$ -- 1
+int.to.str$ -- 12
 missing$ -- 0
-newline$ -- 7
-num.names$ -- 0
-pop$ -- 0
+newline$ -- 71
+num.names$ -- 33
+pop$ -- 4252
 preamble$ -- 1
-purify$ -- 0
+purify$ -- 11
 quote$ -- 0
-skip$ -- 2
+skip$ -- 8141
 stack$ -- 0
-substring$ -- 0
-swap$ -- 0
-text.length$ -- 0
+substring$ -- 3231
+swap$ -- 40
+text.length$ -- 127
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 0
+type$ -- 121
 warning$ -- 0
-while$ -- 0
+while$ -- 155
 width$ -- 0
-write$ -- 6
-(There was 1 error message)
+write$ -- 154
