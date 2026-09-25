@@ -1,13 +1,18 @@
-"""P3 M3 验收脚本：附件4 全 20 条 IG 位置归因（主基线 missing）+ 三基线敏感性。
+"""P3 M3 验收脚本（第二轮审阅修正版）：附件4 全 20 条 IG + 三基线敏感性。
 
 检查项：
-  1. 积分近似误差（主基线）：分类（M2 集成预测类 logit）与回归分别
-     |ΣIG − ΔF| ≤ max(5%·|ΔF|, 1e-3)；zero/mean 基线同式报告（不设门槛）；
-  2. #13 vision 自然缺失：IG_vision ≡ 0（全基线、双输出，架构级阻断实证）；
-  3. 证据边界：special/padding 不作证据（structural_leak 单列），词聚合覆盖差 = 截断词；
+  1. 积分近似误差（主基线 missing，逐样本门槛）：每样本每输出
+     |ΣIG − ΔF| ≤ max(5%·|ΔF|, 1e-3)，报告通过数/最大相对误差/失败清单；
+     zero/mean 基线同式逐样本报告（不设门槛）；
+  2. 证据边界（架构级断言，不再只看结果事实）：全部基线 × 双输出 × 三模态，
+     IG 在不可用位（非 content ∪ content∧o=0）最大绝对值 ≤ 1e-6；
+     #13 vision 自然缺失（全模态实例）单列复检；
+  3. P1 对齐：build_grid input_ids 与附件4 存储网格逐 token 对齐（20/20）；
+     词聚合按 P1 alpha（词内均匀）质量守恒求和；
   4. 三基线排序敏感性：content 位 Spearman ρ（missing↔zero / missing↔mean / zero↔mean），
      a/v 的 missing≡mean 为构造性 ρ=1（z 空间重合留痕）；
-  5. 可微层级声明 + checkpoint SHA + 配置落盘（M4/M6 复用缓存）。
+  5. 可微层级声明 + 基线语义声明（avail 固定 o，与 v(∅) 区分）+ checkpoint SHA 落盘。
+积分：中点 64 步（右端点 32 步在 6 样本超阈值的参数修正，见 docs M3 修订记录）。
 产物：runs/p3/m3/ig_att4.json。退出码：全过 = 0。
 """
 from __future__ import annotations
@@ -29,11 +34,11 @@ from src.p2.data import load_aligned  # noqa: E402
 from src.p2.models import MODEL_REGISTRY  # noqa: E402
 from src.p2.pipeline import load_stats  # noqa: E402
 from src.p2.text_mask import BertTextEncoder  # noqa: E402
-from src.p1.grid import load_tokenizer  # noqa: E402
+from src.p1.grid import build_grid  # noqa: E402
 from src.p3.data import load_att4  # noqa: E402
 from src.p3.ig import (BASELINES, N_STEPS, aggregate_words, av_baseline,  # noqa: E402
-                       endpoints, ig_modality, text_baseline,
-                       train_mean_text_embedding, word_piece_map)
+                       endpoints, ig_modality, p1_word_grid, text_baseline,
+                       train_mean_text_embedding)
 from src.p3.shapley import MODS, prepare_sample  # noqa: E402
 
 CKPT = ROOT / "runs/p2/bft/MRFN_seed{seed}"
@@ -56,7 +61,6 @@ def main() -> int:
     att = load_aligned()
     state = np.load(STATE)
     stats = load_stats()
-    tok = load_tokenizer()
 
     ensemble, mean_embs, fps = [], {}, []
     for seed in (1, 2, 3):
@@ -103,10 +107,14 @@ def main() -> int:
                 "ig": {m: {o: np.mean(ig_sum[m][o], axis=0).tolist() for o in ("cls", "reg")}
                        for m in MODS},
                 "dF": {o: float(np.mean(d_f[o])) for o in ("cls", "reg")}}
-            # ΣIG 完备性（该基线）
+            # ΣIG 完备性（该基线，逐样本值直接进 gate）
             for o in ("cls", "reg"):
                 tot = sum(np.mean(ig_sum[m][o], axis=0).sum() for m in MODS)
                 per_base[kind][f"gap_{o}"] = float(abs(tot - per_base[kind]["dF"][o]))
+            # 证据边界：不可用位（非 content ∪ content∧o=0）IG 应恒零（架构级）
+            per_base[kind]["zero_ig_outside_evidence"] = {
+                m: float(max(np.abs(np.mean(ig_sum[m][o], axis=0)[~st.o[m][0]]).max()
+                             for o in ("cls", "reg"))) for m in MODS}
 
         # 敏感性 Spearman（content 位）
         c = st.content[0]          # 只比 content 位（结构位恒 0，纳入只会制造平秩）
@@ -122,53 +130,78 @@ def main() -> int:
                     rho = float(spearmanr(r[a], r[b]).statistic)
                 rho_acc[tag][m].append(rho)
 
-        # 词聚合（主基线，分类输出）
-        wp = word_piece_map(s.raw_text, tok)
-        words = aggregate_words(np.array(per_base["missing"]["ig"]["text"]["cls"]), wp,
+        # 词聚合（主基线，分类输出）：P1 build_grid 映射 + alpha（词内均匀）
+        wg = p1_word_grid(s.raw_text)
+        words = aggregate_words(np.array(per_base["missing"]["ig"]["text"]["cls"]), wg,
                                 st.content)
-        # 全量分词（不截断）的词数：与 word_ids 同口径（标点/缩写独立成词），
-        # whitespace split 会低估词数（曾致 uncovered<0）
-        full_wids = tok(s.raw_text, return_offsets_mapping=True).word_ids()
-        n_total_words = len({w for w in full_wids if w is not None})
         per_base["words"] = {"n_mapped": words["n_words"],
-                             "n_total": n_total_words,
-                             "uncovered": n_total_words - words["n_words"],
+                             "n_total_retained": wg["n_words_retained"],
+                             "n_total_all": wg["n_words_all"],
+                             "uncovered": wg["n_words_all"] - wg["n_words_retained"],
                              "word_attr": {str(k): round(v, 6) for k, v in
                                            sorted(words["words"].items(),
                                                   key=lambda kv: -abs(kv[1]))[:10]},
-                             "structural_leak": round(words["structural_leak"], 6)}
+                             "word_texts": {str(k): t for k, t in
+                                            list(wg["word_texts"].items())[:24]},
+                             "n_pieces": {str(k): v for k, v in
+                                          list(wg["n_pieces"].items())[:24]},
+                             "structural_leak": round(words["structural_leak"], 6),
+                             "alignment": "build_grid input_ids ≡ 附件4 存储网格（check 3）"}
         reports.append({"sample_id": f"{s.n:02d}", "target_cls": tc,
                         "vision_natural_missing": not st.o["vision"][0].any(),
                         "baselines": per_base})
         print(f"  #{s.n:02d} done (gap_cls={per_base['missing']['gap_cls']:.2e})", flush=True)
 
-    # ---- 1. 积分误差（主基线门槛；其余报告）----
-    gaps = {k: {o: max(r["baselines"][k][f"gap_{o}"] for r in reports)
-                for o in ("cls", "reg")} for k in BASELINES}
-    dfs = {k: {o: max(abs(r["baselines"][k]["dF"][o]) for r in reports)
-               for o in ("cls", "reg")} for k in BASELINES}
-    ok1 = all(gaps["missing"][o] <= max(0.05 * dfs["missing"][o], 1e-3)
-              for o in ("cls", "reg"))
-    add("integration_error_primary", ok1,
-        {"missing": {k: float(v) for k, v in gaps["missing"].items()},
-         "dF_scale": {k: float(v) for k, v in dfs["missing"].items()},
-         "others_report": {k: gaps[k] for k in ("zero", "mean")},
-         "rule": "|ΣIG−ΔF| ≤ max(5%·|ΔF|, 1e-3)"})
+    # ---- 1. 积分误差（主基线逐样本门槛；其余逐样本报告不设门槛）----
+    def per_sample(k):
+        rows = []
+        for r in reports:
+            b = r["baselines"][k]
+            for o in ("cls", "reg"):
+                gap, df = b[f"gap_{o}"], abs(b["dF"][o])
+                rows.append({"id": r["sample_id"], "out": o, "gap": round(gap, 6),
+                             "dF": round(df, 6),
+                             "rel": round(gap / df, 4) if df > 1e-12 else None,
+                             "pass": gap <= max(0.05 * df, 1e-3)})
+        return rows
+    ms = per_sample("missing")
+    fails = [x for x in ms if not x["pass"]]
+    add("integration_error_primary_per_sample", not fails,
+        {"rule": "|ΣIG−ΔF| ≤ max(5%·|ΔF|, 1e-3)，逐样本逐输出",
+         "n_checks": len(ms), "n_pass": len(ms) - len(fails),
+         "max_rel": max((x["rel"] or 0) for x in ms), "fails": fails,
+         "others_report": {k: {"n_pass": sum(x["pass"] for x in per_sample(k)),
+                               "max_rel": max((x["rel"] or 0) for x in per_sample(k))}
+                           for k in ("zero", "mean")}})
 
-    # ---- 2. #13 哑玩家 ----
+    # ---- 2. 证据边界（架构级，全基线×输出×模态）+ #13 全模态实例 ----
+    worst = 0.0
+    for r in reports:
+        for k in BASELINES:
+            worst = max(worst, max(r["baselines"][k]["zero_ig_outside_evidence"].values()))
+    add("zero_ig_outside_evidence", worst <= 1e-6,
+        {"max_abs_ig_on_blocked_positions": worst, "tol": 1e-6,
+         "scope": "3 基线 × 2 输出 × 3 模态 × 20 样本，不可用位 = 非content ∪ content∧o=0"})
     r13 = next(r for r in reports if r["sample_id"] == "13")
     v13 = [r13["baselines"][k]["ig"]["vision"][o] for k in BASELINES for o in ("cls", "reg")]
     add("ig_zero_vision_13", r13["vision_natural_missing"]
         and all(np.max(np.abs(v)) == 0.0 for v in v13),
-        {"max_abs_ig_vision": float(max(np.max(np.abs(v)) for v in v13))})
+        {"max_abs_ig_vision": float(max(np.max(np.abs(v)) for v in v13)),
+         "note": "#13 = 证据边界检查的全模态自然实例"})
 
-    # ---- 3. 证据边界与词覆盖 ----
-    leaks = [r["baselines"]["words"]["structural_leak"] for r in reports]
+    # ---- 3. P1 网格对齐与词覆盖 ----
+    n_align = 0
+    for smp in samples:
+        g = build_grid(smp.raw_text)
+        stored = smp.text_bert[0, 0].astype(int)
+        L = int((stored != 0).sum())
+        n_align += int(np.array_equal(np.asarray(g["input_ids"])[:L], stored[:L]))
     cov = [r["baselines"]["words"]["uncovered"] for r in reports]
-    add("evidence_boundary", all(u >= 0 for u in cov),
-        {"structural_leak_mean": round(float(np.mean(np.abs(leaks))), 6),
+    add("p1_grid_alignment", n_align == len(samples),
+        {"aligned": n_align, "total": len(samples),
          "uncovered_words_total": int(sum(cov)),
-         "note": "special/padding 不作证据；截断词标记 uncovered"})
+         "note": "build_grid ≡ 存储网格逐 token 对齐（含 #07/#18 截断）；"
+                 "词聚合 = P1 alpha 映射 + 质量守恒求和；截断整词 uncovered"})
 
     # ---- 4. 基线敏感性 ----
     def _clean(v):
@@ -186,12 +219,19 @@ def main() -> int:
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "model": "MRFN+ (3-seed ensemble)", "checkpoint_sha12": fps,
-        "config": {"n_steps": N_STEPS, "baselines": list(BASELINES),
-                   "integration": "右端点 Riemann (k/32, k=1..32)",
+        "config": {"n_steps": N_STEPS, "rule": "midpoint",
+                   "baselines": list(BASELINES),
+                   "integration": f"中点 Riemann α=(k-0.5)/{N_STEPS}",
+                   "baseline_semantics": (
+                       "全缺失特征值基线，avail 固定自然观测 o（条件特征归因）。"
+                       "与 v(∅)（Shapley 联盟级反事实，avail=0）严格区分："
+                       "avail=0 时架构阻断 ∂F/∂x≡0，实测 IG 全零（退化平凡博弈）"),
                    "differentiable_layer": {
                        "text": "BERT last_hidden_state (50,768)，冻结编码器 eval；"
                                "α 路径作用在连续嵌入空间，绝不对 token ID 数值插值",
                        "audio/vision": "z-score 标准化连续特征"},
+                   "word_aggregation": "P1 build_grid alpha（词内均匀 1/n_w）+ "
+                                       "质量守恒求和 A_w=Σ_{j∈w}a_j",
                    "target_cls_source": "M2 集成预测类（runs/p3/m2/shapley_att4.json）"},
         "reports": reports, "checks": checks,
         "all_pass": all(c["ok"] for c in checks)}
