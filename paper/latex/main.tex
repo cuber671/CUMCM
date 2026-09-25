@@ -733,15 +733,172 @@ A_w=\sum_{j\in w}\mathrm{IG}_j,
 
 %% ============ 附录 ============
 \appendix
-\section{环境与核心参数}
-%（素材：docs/环境与复现说明.md、environment-manifest.json 字段表）
 
-\section{关键代码}
-\begin{Python}{align.py（示例：P1 词区间对齐）}
-# TODO: 从 src/ 摘取关键片段
+\section{环境与复现}
+\subsection*{A.1 运行环境}
+全部版本号取自问题一数据契约（p1.v2）的冻结记录，为本文环境描述的唯一口径：
+\begin{center}\small
+\begin{tabular}{ll}
+  \toprule
+  组件 & 版本（冻结值） \\
+  \midrule
+  Python & 3.10 \\
+  PyTorch / torchaudio & 2.11.0 / 2.11.0 \\
+  transformers & 5.17.0 \\
+  openSMILE & 2.6.0 \\
+  Py-Feat & 0.6.1 \\
+  imageio-ffmpeg / ffmpeg & 0.6.0 / 7.0.2（static） \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{A.2 模型与权重指纹}
+BERT：bert-base-uncased，revision 86b5e09（权重 SHA-256 前缀 68d45e234eb4）；
+对齐声学模型：torchaudio WAV2VEC2\_ASR\_BASE\_960H；
+MRFN+ 三种子检查点 SHA-256 前 12 位：54c56d1fd45d / 7553aa96090f / b491d4f1e5fd
+（第六章归因与附件3、附件4 推理使用同一权重族）；测试集终评冻结于 commit
+03eece9（唯一一次评估，此后实验封版）。完整 SHA-256 与逐种子清单随交付包
+manifest 交付。
+
+\subsection*{A.3 数据契约}
+问题一特征契约为 p1.v2：100 条样本、schema 违例 0，含结构掩码、逐样本映射表
+与三个核心 artifact 的 SHA-256；评测掩码库使用独立种子（2026），每场景 8 个
+实例，与训练种子分离；改进轮次的缺失调度种子独立登记。掩码库全量重生成经
+逐位一致性校验。
+
+\subsection*{A.4 复现步骤}
+按下列入口脚本顺序复现全部结果（参数与运行说明随交付包）：
+\begin{Python}{复现入口（scripts/）}
+# 问题一：原始视频 -> 特征/映射表/验收
+run_p1.py, check_p1_acceptance.py, generate_p1_replay.py
+# 问题二：掩码库 -> 阶梯/改进训练 -> 终评
+generate_p2_mask_library.py, train_p2_ladder.py,
+train_p2_mrfn.py, train_p2_bft.py,
+eval_p2_test.py, eval_p2_test_second.py, predict_fj3.py
+# 问题三：归因与验证 -> 附件4 交付
+check_p3_m1.py ... check_p3_m5.py, gen_p3_m6_alignment.py, predict_fj4.py
 \end{Python}
 
-\section{P1 自动回放图}
-%（replay_×9；签核完成前一律称"自动回放"；q1 旧图与 q3 备选图亦可放此）
+\section{关键代码}
+\begin{Python}{B.1 对齐核心：字符帧段聚合与失败段插值（src/p1/align.py，节选）}
+# 词区间聚合：首字符帧段起点、末字符帧段终点（半开）
+start_frame = int(word_spans[0].start); end_frame = int(word_spans[-1].end)
+confidence = _weighted_confidence(word_spans, frame_scores)  # 帧段并集发射后验均值
+record.update({"t_s": start_frame * HOP_SECONDS,
+               "t_e": min(end_frame * HOP_SECONDS, duration), ...})
+# 失败段插值：左右锚点=最近可信词端点，首尾用片段首/末帧；整帧等距切分
+boundaries = [left + (available * index) // count for index in range(count + 1)]
+if boundaries is None:              # 切分不可行 -> 最终失败（接 R3）
+    _clear_final_interval(record); record["alignment_status"] = "failed"
+\end{Python}
+\begin{Python}{B.2 合成缺失算子契约（src/p2/missing.py，头部节选）}
+# b_m 只允许落在 o_m=1 的位置；special/padding 永不抹除；a = o*(1-b)
+# 机制：mcar=均匀随机位；block=单连续块(位置 head/mid/tail/random)；
+#       joint=a+v 同位联合（段长~附件3实测分布）；full=整模态
+# 附件3 实测段长分布：{1: 0.7474, 2: 0.1684, 3: 0.0421, 4: 0.0421}
+# 可复现：rng = default_rng([mask_library_seed, combo_idx, k])，逐位复现
+MASK_LIBRARY_SEED = 2026; K_INSTANCES = 8
+\end{Python}
+\begin{Python}{B.3 掩码原语与门控（src/p2/modules.py、models.py，节选）}
+def forward(self, x, a, mod_idx):          # 缺失状态编码：选择运算
+    x_eff = torch.where(a_b[..., None], x, zeros)      # a=0 位不进计算图
+    return self.pos + x_eff + (~a_b).to(x.dtype)[..., None] * self.miss[mod_idx]
+scores = scores.masked_fill(~avail[:, None, None, :], float("-inf"))  # K 侧屏蔽
+v = torch.where(avail[:, None, :, None], v, zeros)                     # V 侧置零
+empty = ~avail.any(dim=1)             # 证据全不可用 -> 显式置零分支
+g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控
+\end{Python}
+\begin{Python}{B.4 归因计算（src/p3/shapley.py、ig.py，节选）}
+def exact_shapley(values):            # 8 联盟精确枚举，精确分数权重
+    w = shapley_weights()             # (1/3, 1/6, 1/3)
+    for r in range(len(others) + 1):
+        for c in combinations(others, r):
+            term = (values[S | {m}] - values[S]) * float(w[r])
+# IG：64 步中点 Riemann（代码中路径变量名 alpha 对应正文 \tau）
+for k in range(1, n_steps + 1):
+    alpha = k / n_steps if rule == "right" else (k - 0.5) / n_steps
+\end{Python}
+
+\section{交付文件样例}
+\subsection*{C.1 附件3（问题二交付）}
+预测结果 CSV 列：sample\_id, pred\_polarity, pred\_intensity, pred\_confidence,
+n\_content\_positions, miss\_rate\_{text/audio/vision}, joint\_miss\_rate,
+mean\_seg, $\ldots$（30 行全量）。样例行：
+\begin{Python}{附件3_预测结果.csv（样例）}
+附件3_02, 1, -0.1721, 0.4488, 28, 0.0, 0.178571, 0.178571, 0.178571, 1.25, ...
+\end{Python}
+行为分析摘要与困难样本清单（按音视平均缺失率降序、同率按置信度升序取前
+5 条：附件3\_30/29/27/17/21）随交付包。推理模型为 MRFN+ 三种子集成。
+
+\subsection*{C.2 附件4（问题三交付）}
+预测与模态贡献 CSV 列：sample\_id, pred\_polarity, confidence（校准）,
+main\_modality, $\varphi_{t/a/v}$, $\varphi^{r}_{t/a/v}$, $g_{t/a/v}$,
+vision\_natural\_missing（20 行全量）；证据定位长表列：sample\_id, rank,
+modality, attribution, model\_position, evidence\_type, content, t\_start,
+t\_end, word\_align\_status（60 行）。样例行：
+\begin{Python}{附件4_证据定位长表.csv（样例）}
+01, 1, text, 0.0552, 9, word, belt, 1, 3.04, 3.22, 8, aligned
+\end{Python}
+解释卡交付 4 例（样本 \#04/\#09/\#13/\#17，覆盖双向词证、强负文本主导、
+视觉整模态缺失哑玩家、高置信正类四类），全文随交付包；正文
+图~\ref{fig:q3-cards} 为另行选取的代表性三例（含视觉主导样本 \#14），
+两处样本集不同。样例（样本 \#09）：
+\begin{Python}{解释卡（样节）}
+极性 Negative（校准置信度 0.97）| 强度 -2.29 | 主要参考模态 text
+转写: "(uhh) I did not like this movie at all, I would not recommend it"
+text: φ=+0.682(预测类) / -2.454(强度) / g=0.765
+证据 TOP3（|IG| 序）: "recommend" t∈[3.20,3.62]s; "i" t∈[2.80,2.82]s; "it" t∈[3.62,4.96]s
+对齐: 14 词 CTC 强制对齐（失败 2，插值放行），视频时长 5.0s
+\end{Python}
+
+\section{掩码库说明}
+31 个评测场景的固定键序（与 5.4 节网格一一对应）：
+\begin{Python}{掩码库场景键序（31 条）}
+mcar/t/rate{10,20,40,60,80}/random        # 单模态 × 5 率（15 条）
+mcar/{ta,tv,av}/rate40/random             # 双模态 @40%（3 条）
+block/{t,a,v}/rate40/{head,mid,tail,random}  # 连续块 × 位置（12 条）
+joint/av/rate40/random                    # 联合缺失（1 条）
+\end{Python}
+每场景 8 个种子化实例（default\_rng([2026, combo\_idx, k])），场景值为 8 实例
+均值；掩码库种子与训练种子分离，训练期不可见；全库重生成经逐位一致性校验。
+
+\section{自动回放图与签核单}
+以下 9 张回放图按 4.6 节协议自动渲染（签核完成前一律称``自动回放''），
+覆盖协议规定的全部六类边界；签核单如表~\ref{tab:replay-audit}，当前状态
+为``待签核''，签核结果将补录于本表。
+\begin{table}[htbp]
+  \centering\small
+  \caption{回放签核单（当前状态：待签核）}
+  \label{tab:replay-audit}
+  \begin{tabular}{llc}
+    \toprule
+    样本 & 边界类型 & 人工结论 \\
+    \midrule
+    $-$3g5yACwYnA\_13 & 多子词、标点挂靠、对齐失败 & 待签核 \\
+    $-$3g5yACwYnA\_2 & 多子词、标点挂靠、对齐失败 & 待签核 \\
+    $-$3g5yACwYnA\_9 & 标点挂靠、对齐失败 & 待签核 \\
+    $-$3nNcZdcdvU\_5 & 多子词、标点挂靠、正常 & 待签核 \\
+    $-$571d8cVauQ\_5 & 头部截断、多子词、对齐失败 & 待签核 \\
+    $-$9y-fZ3swSY\_4 & rollback、多子词、对齐失败 & 待签核 \\
+    $-$HwX2H8Z4hY\_2 & rollback、标点挂靠、无人脸、对齐失败 & 待签核 \\
+    $-$HwX2H8Z4hY\_5 & 标点挂靠、无人脸 & 待签核 \\
+    $-$NFrJFQijFE\_1 & rollback、无人脸、混合帧率、对齐失败 & 待签核 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{figure}[htbp]\centering
+  \includegraphics[width=0.92\textwidth]{figures/q1/replay_3g5yACwYnA_13.pdf}
+  \caption{自动回放：$-$3g5yACwYnA\_13（多子词、标点挂靠、对齐失败）}
+\end{figure}
+\begin{figure}[htbp]\centering
+  \includegraphics[width=0.92\textwidth]{figures/q1/replay_571d8cVauQ_5.pdf}
+  \caption{自动回放：$-$571d8cVauQ\_5（头部截断、多子词、对齐失败）}
+\end{figure}
+\begin{figure}[htbp]\centering
+  \includegraphics[width=0.92\textwidth]{figures/q1/replay_9yfZ3swSY_4.pdf}
+  \caption{自动回放：$-$9y-fZ3swSY\_4（rollback、多子词、对齐失败）}
+\end{figure}
+其余六张回放图随交付包交付。备选图（问题三的 q3\_del\_ins、q3\_gphi、
+q3\_att4 与问题一过程图）未编入正文与附录，原因与文件名清单随交付包说明。
 
 \end{document}
