@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""图1：统一语义—时间坐标图（正文主图，三轨 + 映射连接带）。
+"""图2：统一时序坐标图（正文主图 fig:q1-unified，四带结构）。
 
 Usage:
   .venv/bin/python scripts/figures/plot_q1_unified.py
 
 从冻结 pkl 与回放缓存自动生成，输出 paper/latex/figures/q1/q1_unified_coordinate.{pdf,png}：
-  带0 文本轨：WordPiece 网格（position 域，词分组着色，CLS/SEP 特殊位）
+  带0 文本子词轨：子词网格（语义位置域，词分组着色，CLS/SEP 特殊位）
   带1 连接带：词 → [t_s, t_e) 映射梯形（多子词整词共享区间，插值词虚线）
-  带2 音频轨：波形 + 词区间池化带（time 域）
-  带3 视觉轨：关键帧按 pts_time 落位 + 全帧 pts rug（time 域）
+  带2 音频轨：波形 + 词区间池化带（物理时间域）
+  带3 视觉轨：关键帧按帧时间戳落位 + 全帧时间戳 rug（物理时间域）
 
 两个横轴域独立（position / time），仅通过映射梯形连接，不做
 position→time 线性拉伸——"非 50 等间隔帧"的结论由图2承担，本图不削弱它。
@@ -64,6 +64,7 @@ def configure_style() -> None:
         "grid.linewidth": 0.45,
         "grid.alpha": 0.35,
         "axes.unicode_minus": False,
+        "mathtext.fontset": "cm",
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
         "savefig.bbox": "tight",
@@ -130,7 +131,7 @@ def main() -> int:
                     color="white" if is_special else "#1F2933", zorder=3)
     ax_pos.add_patch(plt.Rectangle((n_valid - 0.5 + 0.18, 0.24), 1.35, 0.68,
                                    facecolor="#E5E7EB", edgecolor="white", linewidth=1.0, zorder=2))
-    ax_pos.text(n_valid + 0.36, 0.58, f"PAD ×{n_pad}", ha="center", va="center",
+    ax_pos.text(n_valid + 0.36, 0.58, f"填充 ×{n_pad}", ha="center", va="center",
                 fontsize=6.0, color="#6B7280", zorder=3)
     seps = [m["position"] for m in wmap_valid[1:]
             if m["word_id"] != wmap_valid[m["position"] - 1]["word_id"]]
@@ -140,10 +141,10 @@ def main() -> int:
     ax_pos.set_ylim(0, 1.05)
     ax_pos.set_yticks([])
     ax_pos.set_xticks(list(range(n_valid)))
-    ax_pos.tick_params(axis="x", labelsize=5.8)
+    ax_pos.tick_params(axis="x", labelsize=6.0)
     ax_pos.grid(False)
-    ax_pos.set_xlabel("语义位置（WordPiece 网格，position 域；content=18/50，含 CLS/SEP 的 attention 有效位=20/50）")
-    ax_pos.set_title("文本轨：BERT 逐位置输出，词分组着色（多子词同色相连）",
+    ax_pos.set_xlabel("语义位置（子词网格）")
+    ax_pos.set_title("文本子词轨：BERT 逐位置，词分组着色、多子词同色相连",
                      loc="left", fontsize=8.4, pad=3)
 
     # ---- 带1 连接带：词 → [t_s, t_e) 映射梯形（fraction 坐标） ----
@@ -176,19 +177,20 @@ def main() -> int:
     ax_mid.set_xticks([])
     ax_mid.set_yticks([])
     ax_mid.grid(False)
-    ax_mid.set_title("映射：词 → [t_s, t_e)（音频 / 视觉在词区间池化后复制到词内全部 WordPiece）",
+    ax_mid.set_title("词区间映射：词 $\\to\\ [t_s,\\, t_e)$（池化后复制到词内子词）",
                      loc="left", fontsize=8.4, pad=3)
     legend_items = [
         plt.Rectangle((0, 0), 1, 1, fc="#7FB3D5", alpha=0.35, ec="#3E7CB1", lw=0.8,
                       label="词区间（整词共享）"),
         plt.Line2D([0], [0], color="#666666", lw=0.9, ls=":",
-                   label="低置信度插值词"),
+                   label="对齐失败插值词"),
         plt.Rectangle((0, 0), 1, 1, fc=special, ec="none", label="特殊位 CLS / SEP（无时间映射）"),
     ]
     ax_mid.legend(handles=legend_items, loc="lower left", bbox_to_anchor=(0.01, 0.01),
                   frameon=False, fontsize=6.2, handlelength=1.4)
 
-    # ---- 带2 音频轨：time 域，波形 + 词区间 ----
+    # ---- 带2 音频轨：物理时间域，波形 + 词区间 ----
+    word_labels = []   # 6pt 旋转词标，落盘前做像素级避让审计
     t_audio = np.arange(len(ast["audio"])) / ast["sr"]
     ax_aud.plot(t_audio, ast["audio"], lw=0.35, color="#5B8DB8", zorder=2)
     amp = float(np.abs(ast["audio"]).max()) or 1.0
@@ -196,15 +198,16 @@ def main() -> int:
         if w.get("t_s") is None:
             continue
         ax_aud.axvspan(w["t_s"], w["t_e"], color=wcolor[w["word_id"]], alpha=0.15, zorder=1)
-        ax_aud.text((w["t_s"] + w["t_e"]) / 2, amp * 0.95, w["word_text"], rotation=90,
-                    fontsize=5.2, ha="center", va="top", color="#1F2933", zorder=3)
+        t = ax_aud.text((w["t_s"] + w["t_e"]) / 2, amp * 0.95, w["word_text"], rotation=90,
+                        fontsize=6.0, ha="center", va="top", color="#1F2933", zorder=3)
+        word_labels.append(t)
     ax_aud.set_xlim(*time_xlim)
     ax_aud.set_ylim(-amp * 1.15, amp * 1.15)
     ax_aud.set_yticks([-amp, 0, amp])
     ax_aud.set_yticklabels(["−A", "0", "+A"], fontsize=6.2)
     ax_aud.tick_params(axis="x", labelbottom=False)
     ax_aud.set_ylabel("波形幅度")
-    ax_aud.set_title("音频轨：eGeMAPS LLD 在词区间 [t_s, t_e) 内池化（time 域）",
+    ax_aud.set_title("音频轨：eGeMAPS 声学特征在词区间 $[t_s,\\, t_e)$ 内池化",
                      loc="left", fontsize=8.4, pad=3)
 
     # ---- 带3 视觉轨：time 域，关键帧按 pts_time 落位 + 全帧 pts rug ----
@@ -222,17 +225,38 @@ def main() -> int:
                                    0.34, 0.94),
                       aspect="auto", zorder=3)
         ha = "left" if pt < 0.3 else ("right" if pt > duration - 0.3 else "center")
-        ax_vis.text(pt, 0.10, f"{pt:.2f}", ha=ha, va="bottom",
-                    fontsize=5.0, color="#374151", zorder=4)
+        t = ax_vis.text(pt, 0.10, f"{pt:.2f}", ha=ha, va="bottom",
+                        fontsize=6.0, color="#374151", zorder=4)
+        word_labels.append(t)
     ax_vis.set_xlim(*time_xlim)
     ax_vis.set_ylim(0, 1.32)
     ax_vis.set_yticks([])
-    ax_vis.set_xlabel("物理时间 (s)（音频 / 视觉轨共享，time 域）")
-    ax_vis.set_title("视觉轨：关键帧按帧时间戳 pts_time 落位（底部短刻度 = 全部 163 帧的 pts）",
+    ax_vis.set_xlabel("物理时间 (s)（音频 / 视觉轨共享）")
+    ax_vis.set_title("视觉轨：关键帧按帧时间戳落位",
                      loc="left", fontsize=8.4, pad=3)
-    ax_vis.text(0.08, 1.30, "VFR 样本：底部短刻度即全部帧的 pts_time，间隔非均匀\n"
-                            "（视觉时间禁用 帧号 × 固定帧率 推算）",
+    ax_vis.text(0.08, 1.30, f"帧间隔非均匀：短刻度为全部 {len(frames)} 帧的帧时间戳，时间不以帧号 × 帧率推算",
                 ha="left", va="top", fontsize=6.4)
+
+    # 小字标注避让审计：重叠的词标错层至 amp*0.50 后复检
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+
+    def _overlaps():
+        bs = [t.get_window_extent(renderer=rend) for t in word_labels]
+        return [(word_labels[i], word_labels[j]) for i in range(len(bs))
+                for j in range(i + 1, len(bs)) if bs[i].overlaps(bs[j])]
+    moved = 0
+    for _ in range(3):
+        pairs = _overlaps()
+        if not pairs:
+            break
+        for ta, tb in pairs:
+            t = tb if ta.get_position()[0] <= tb.get_position()[0] else ta
+            t.set_y(amp * 0.50)
+            moved += 1
+        fig.canvas.draw()
+    n_ov = len(_overlaps())
+    print(f"  小字标注避让：错层 {moved} 处，剩余重叠 {n_ov}  {'PASS' if n_ov == 0 else 'FAIL'}")
 
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT / "q1_unified_coordinate.pdf")
@@ -241,7 +265,7 @@ def main() -> int:
 
     n_words_all = len(sample["full_word_map"])
     multi = sorted({m["word_text"] for m in wmap if (m.get("wp_count_in_word") or 0) > 1})
-    print("图1 caption 素材：")
+    print("图2 caption 素材：")
     print(f"  样本 {sid}（VFR={'是' if bool(mrow['is_vfr']) else '否'}，{len(frames)} 帧，"
           f"时长 {duration:.2f} s，名义 fps {float(mrow['fps']):.4f}）")
     print(f"  词数 {n_words_all}（保留 {len(words)}），内容片 {sum(1 for m in wmap if m['word_id'] is not None)}，"

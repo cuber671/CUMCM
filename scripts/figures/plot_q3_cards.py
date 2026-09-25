@@ -12,7 +12,7 @@ p3_fidelity.tex 同名同义（两版内容等价，本版含 F 诊断行）。
 - 数字统一用第二轮 M3（commit 6fa6c56）：逐样本 40/40、max_rel 0.62%（64 步中点）；
 - M4：A–E 通过，F text IG–LOO 0.1701 < 0.3 未通过并完成诊断；A 删除胜数 19/20；
 - v(∅)（Shapley 联盟级，avail=0）与 IG 条件特征基线（avail=o）分开命名；
-- 附件4 无时间戳：词级回溯用 P1 网格（20/20 对齐），[t_s,t_e) 回溯仅 P1 域内；
+- 附件4 无时间戳：词级回溯用问题一网格（20/20 对齐），[t_s,t_e) 回溯仅问题一域内；
 - 解释卡不做精度声明（附件4 无标签）。
 """
 from __future__ import annotations
@@ -44,27 +44,13 @@ CURVES = pd.read_csv(RUNS / "m4/curves.csv", encoding="utf-8-sig")
 
 MODS = ("text", "audio", "vision")
 CLS_NAME = {0: "负", 1: "中", 2: "正"}
-MOD_COLOR = {"text": "#0072B2", "audio": "#E69F00", "vision": "#009E73"}
+from figstyle import FONT_SIZE, MOD_COLOR, POLARITY, configure
+MOD_CN = {"text": "文本", "audio": "语音", "vision": "视觉"}  # 模态/极性色全图统一（figstyle 单源）
 CARD_SAMPLES = ("09", "14", "13")  # 强文本主导 / 代表性 vision 主导 / vision 全缺哑玩家
 
 
 def configure_style() -> None:
-    import seaborn as sns
-    sns.set_theme(style="whitegrid", context="paper")
-    cjk = Path.home() / ".fonts/NotoSansSC-Regular.otf"
-    if cjk.is_file():
-        font_manager.fontManager.addfont(str(cjk))
-        family = font_manager.FontProperties(fname=str(cjk)).get_name()
-    else:
-        family = "DejaVu Sans"
-    mpl.rcParams.update({
-        "font.family": "sans-serif", "font.sans-serif": [family, "DejaVu Sans"],
-        "font.size": 8.5, "axes.titlesize": 9.0, "axes.labelsize": 8.5,
-        "xtick.labelsize": 7.5, "ytick.labelsize": 7.5,
-        "axes.unicode_minus": False, "pdf.fonttype": 42, "ps.fonttype": 42,
-        "savefig.bbox": "tight", "savefig.pad_inches": 0.08,
-        "mathtext.fontset": "cm",
-    })
+    configure()
 
 
 def phi_table() -> pd.DataFrame:
@@ -104,7 +90,7 @@ def plot_shapley_evidence() -> None:
     y = np.arange(len(df))
     for m, dx in (("phi_vision", 1.4), ("phi_audio", 0.7), ("phi_text", 0.0)):
         ax_l.barh(y + dx, df[m].to_numpy(), height=0.62,
-                  color=MOD_COLOR[m.split("_")[1]], label=m.split("_")[1])
+                  color=MOD_COLOR[m.split("_")[1]], label=MOD_CN[m.split("_")[1]])
     for i, row in df.iterrows():
         ax_l.plot(row[f"phi_{row['dom']}"],
                   y[i] + {"text": 0.0, "audio": 0.7, "vision": 1.4}[row["dom"]],
@@ -113,26 +99,25 @@ def plot_shapley_evidence() -> None:
     ax_l.set_yticklabels([f"#{i}" for i in df["id"]], fontsize=6.0)
     ax_l.axvline(0, color="#374151", lw=0.8)
     ax_l.set_xlabel(r"带符号 Shapley 贡献 $\varphi_m$（预测类，联盟级 $v(\emptyset)$ 基准）")
-    ax_l.set_title("20 条样本模态贡献与主导模态（◆）", loc="left", fontsize=8.4)
+    ax_l.set_title("模态贡献与主导模态（◆）", loc="left", fontsize=FONT_SIZE["TITLE"])
     ax_l.legend(frameon=False, fontsize=6.6, loc="lower right")
     dom_counts = df["dom"].value_counts()
-    ax_l.text(0.02, 0.02, "主导：" + "，".join(f"{m} {dom_counts.get(m, 0)}" for m in MODS),
+    ax_l.text(0.02, 0.02, "主导：" + "，".join(f"{MOD_CN[m]} {dom_counts.get(m, 0)}" for m in MODS),
               transform=ax_l.transAxes, fontsize=6.2, color="#374151")
 
     words = word_evidence("09", topk=8)
     names = [w for w, _ in words][::-1]
     vals = [v for _, v in words][::-1]
     ax_r.barh(range(len(vals)), vals, height=0.62,
-              color=[MOD_COLOR["text"] if v >= 0 else "#CC79A7" for v in vals])
+              color="#374151")  # 中性单色：方向即符号；同图左板已有模态色图例，禁极性复用蓝色
     ax_r.set_yticks(range(len(vals)))
     ax_r.set_yticklabels(names, fontsize=7.2)
     ax_r.axvline(0, color="#374151", lw=0.8)
     ax_r.set_xlabel("词级 IG 贡献（条件特征基线，质量守恒求和）")
-    ax_r.set_title("TOP-8 原词证据（#09，text 主导）", loc="left", fontsize=8.4)
-    ax_r.text(0.5, -0.16, "附件4 无时间戳：词回溯用 P1 网格（20/20 对齐），\n"
-                          "$[t_s,t_e)$ 时间回溯仅 P1 100 条域内可用",
+    ax_r.set_title("TOP-8 原词证据（#09）", loc="left", fontsize=FONT_SIZE["TITLE"])
+    ax_r.text(0.5, -0.16, "附件4 无时间戳：词回溯用问题一网格（20/20 对齐），\n"
+                          "$[t_{\\mathrm{s}},t_{\\mathrm{e}})$ 时间回溯仅问题一 100 条域内可用",
               transform=ax_r.transAxes, ha="center", va="top", fontsize=6.2, color="#6B7280")
-    fig.suptitle("模态贡献—证据回溯（MRFN+ 3-seed 集成，附件4，20 条）", y=0.995, fontsize=9.5)
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q3_shapley_evidence.pdf")
@@ -143,19 +128,19 @@ def plot_shapley_evidence() -> None:
 def plot_fidelity() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(6.9, 2.8), sharey=True)
     for ax, curve, title in zip(axes, ("deletion", "insertion"),
-                                ("删除实验（按归因删除，越降越有效）",
-                                 "插入实验（按归因插入，越升越有效）")):
+                                ("删除实验（越降越有效）",
+                                 "插入实验（越升越有效）")):
         d = CURVES[CURVES.curve == curve]
         agg = d.groupby("frac").agg(pa=("p_attr", "mean"), pr=("p_rand_mean", "mean"),
                                     ps=("p_rand_std", "mean")).reset_index()
         ax.plot(agg.frac, agg.pa, marker="o", ms=3.2, lw=1.4, color="#D55E00", label="归因排序")
         ax.plot(agg.frac, agg.pr, marker="s", ms=2.8, lw=1.2, ls="--", color="#0072B2",
-                label="随机排序（均值）")
+                label="随机排序")
         ax.fill_between(agg.frac, agg.pr - agg.ps, agg.pr + agg.ps,
                         color="#0072B2", alpha=0.15, linewidth=0)
         ax.set_xlabel("删除/插入比例")
         ax.set_xticks([0.1, 0.3, 0.5, 0.7, 0.9])
-        ax.set_title(title, loc="left", fontsize=8.4)
+        ax.set_title(title, loc="left", fontsize=FONT_SIZE["TITLE"])
         ax.legend(frameon=False, fontsize=6.6,
                   loc="upper left" if curve == "deletion" else "lower right")
     axes[0].set_ylabel("目标类概率（20 条均值）")
@@ -166,7 +151,6 @@ def plot_fidelity() -> None:
                  color="#374151", bbox=dict(fc="white", ec="none", alpha=0.85, pad=1.2))
     axes[1].text(0.97, 0.90, f"ΔAUC={b['mean_dauc']:.4f}\n胜 {b['wins']}/20",
                  transform=axes[1].transAxes, ha="right", fontsize=6.4, color="#374151")
-    fig.suptitle("删除/插入保真度（M3 主基线 IG_cls；A–E 通过，F 见验证表）", y=1.02, fontsize=9.5)
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q3_fidelity.pdf")
@@ -193,7 +177,7 @@ def plot_ig_validation() -> None:
     ax.set_xticklabels([lab for _, lab in pairs], fontsize=7.2)
     ax.set_ylim(0.90, 1.045)
     ax.set_ylabel("排序 Spearman ρ（20 条均值）")
-    ax.set_title("基线敏感性：三基线排序高度一致", loc="left", fontsize=8.4)
+    ax.set_title("三基线排序一致性", loc="left", fontsize=FONT_SIZE["TITLE"])
     handles = [plt.Rectangle((0, 0), 1, 1, fc=MOD_COLOR[m], ec="none") for m in MODS]
     ax.legend(handles, list(MODS), frameon=False, fontsize=6.2, ncol=3,
               loc="upper left", handlelength=1.1, columnspacing=0.8)
@@ -208,8 +192,7 @@ def plot_ig_validation() -> None:
             transform=ax.get_yaxis_transform())
     ax.set_ylim(0, 0.95)
     ax.set_ylabel("IG–LOO 一致性 |ρ|（20 条均值）")
-    ax.set_title("F 诊断：a/v 局部干预强一致，text 未达门槛", loc="left", fontsize=8.4)
-    fig.suptitle("IG 验证：64 步中点积分 40/40（max 0.62%），结构位泄漏 0", y=1.02, fontsize=9.5)
+    ax.set_title("F 诊断：音视局部干预强一致，文本未达门槛", loc="left", fontsize=FONT_SIZE["TITLE"])
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q3_ig_validation.pdf")
@@ -218,7 +201,7 @@ def plot_ig_validation() -> None:
 
 
 def plot_explain_cards() -> None:
-    fig, axes = plt.subplots(3, 2, figsize=(6.9, 6.6),
+    fig, axes = plt.subplots(3, 2, figsize=(6.9, 6.0),
                              gridspec_kw={"width_ratios": [1.0, 1.35]})
     reps = {r["sample_id"]: r for r in M2["reports"]}
     for row, sid in enumerate(CARD_SAMPLES):
@@ -228,23 +211,23 @@ def plot_explain_cards() -> None:
         ax.axis("off")
         g = r["gates_full"]
         lines = [f"样本 #{sid}",
-                 f"预测：{CLS_NAME[tc]}（强度 {r['pred_intensity']:+.2f}，置信 {r['confidence']:.2f}）",
+                 f"预测：{CLS_NAME[tc]}（强度 {r['pred_intensity']:+.2f}，置信度 {r['confidence']:.2f}）",
                  ""]
         for i, m in enumerate(MODS):
-            lines.append(f"$\\varphi_{{{m}}}$ = {r['phi_cls'][m][tc]:+.3f}   （gate {g[i]:.2f}）")
+            lines.append(f"$\\varphi_{{{m}}}$ = {r['phi_cls'][m][tc]:+.3f}   （门控 $g_m$ {g[i]:.2f}）")
         lines += ["", r"$\Sigma\varphi = v(N)-v(\emptyset)$，残差 $\leq 10^{-5}$"]
         if sid == "13":
-            lines.append("vision 全模态自然缺失：哑玩家 $\\varphi_v \\equiv 0$")
+            lines.append("视觉整模态自然缺失：哑玩家 $\\varphi_v \\equiv 0$")
         ax.text(0.02, 0.98, "\n".join(lines), va="top", ha="left", fontsize=7.6,
                 linespacing=1.55, transform=ax.transAxes)
         ax.add_patch(plt.Rectangle((0.0, 0.02), 1.0, 0.96, transform=ax.transAxes,
-                                   fill=False, edgecolor="#9AA5B1", lw=0.8))
+                                   fill=False, edgecolor="#999999", lw=0.6, linestyle=(0, (4, 3))))
         ax = axes[row, 1]
         words = word_evidence(sid, topk=5)
         names = [w for w, _ in words][::-1]
         vals = [v for _, v in words][::-1]
         ax.barh(range(len(vals)), vals, height=0.6,
-                color=[MOD_COLOR["text"] if v >= 0 else "#CC79A7" for v in vals])
+                color=[POLARITY["正"] if v >= 0 else POLARITY["负"] for v in vals])
         ax.set_yticks(range(len(vals)))
         ax.set_yticklabels(names, fontsize=7.4)
         ax.axvline(0, color="#374151", lw=0.8)
@@ -252,11 +235,9 @@ def plot_explain_cards() -> None:
             ax.set_title("TOP-5 原词证据（IG，条件特征基线）", loc="left", fontsize=7.8)
         ax.set_xlim(min(min(vals), 0) * 1.25 - 1e-3, max(max(vals), 0) * 1.25 + 1e-3)
         if row == 2:
-            ax.set_xlabel("词级 IG 贡献（P1 网格聚合，质量守恒求和）")
-    fig.suptitle("解释卡（附件4，MRFN+ 集成；无标签 → 不做精度声明，仅展示预测/贡献/证据回溯）",
-                 y=0.985, fontsize=9.0)
+            ax.set_xlabel("词级 IG 贡献（问题一网格聚合，质量守恒求和）")
     FIG_OUT.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout(pad=0.7, rect=(0, 0, 1, 0.97))
+    fig.tight_layout(pad=0.6, rect=(0, 0, 1, 1))
     fig.savefig(FIG_OUT / "q3_explain_cards.pdf")
     fig.savefig(FIG_OUT / "q3_explain_cards.png", dpi=300)
     plt.close(fig)

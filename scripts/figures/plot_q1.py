@@ -23,36 +23,15 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from figstyle import FONT_SIZE, MOD_COLOR, STATUS, configure
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUN = ROOT / "runs" / "p1_full"
 DEFAULT_OUT = ROOT / "paper" / "latex" / "figures" / "q1"
 
 
 def configure_style() -> None:
-    sns.set_theme(style="whitegrid", context="paper")
-    cjk_font = Path.home() / ".fonts" / "NotoSansSC-Regular.otf"
-    if cjk_font.is_file():
-        font_manager.fontManager.addfont(str(cjk_font))
-        cjk_family = font_manager.FontProperties(fname=str(cjk_font)).get_name()
-    else:
-        cjk_family = "DejaVu Sans"
-    mpl.rcParams.update({
-        "font.family": "sans-serif",
-        "font.sans-serif": [cjk_family, "DejaVu Sans"],
-        "font.size": 8.5,
-        "axes.titlesize": 9.5,
-        "axes.labelsize": 8.5,
-        "xtick.labelsize": 7.5,
-        "ytick.labelsize": 7.5,
-        "axes.linewidth": 0.7,
-        "grid.linewidth": 0.45,
-        "grid.alpha": 0.35,
-        "axes.unicode_minus": False,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.08,
-    })
+    configure()
 
 
 def save_figure(fig: mpl.figure.Figure, output: Path, *, dpi: int = 600) -> None:
@@ -127,7 +106,7 @@ def plot_quality(run_root: Path, output: Path) -> None:
 
     ax = axes[1, 0]
     reason = behavior["C_缺失原因比例"]["vision_content_position比例"]
-    labels = ["observed", "no_face", "no_frame", "alignment_failed", "other"]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败", "其他"]
     values = [reason.get(label, 0.0) * 100 for label in labels]
     ax.bar(labels, values, color=["#59A14F", "#F28E2B", "#B07AA1", "#E15759", "#BAB0AC"])
     ax.set_title("视觉缺失原因（content-position）")
@@ -181,7 +160,7 @@ def plot_fps_distribution(run_root: Path, output: Path) -> None:
     manifest = pd.read_csv(run_root / "manifest.csv")
     fig, axes = plt.subplots(1, 2, figsize=(6.6, 2.9))
     sns.histplot(manifest["fps"], bins=12, color="#4E79A7", ax=axes[0])
-    axes[0].set_title("由PTS间隔估计的FPS")
+    axes[0].set_title("由 PTS 间隔估计的帧率")
     axes[0].set_xlabel("帧率（FPS）")
     axes[0].set_ylabel("样本数")
     sns.histplot(manifest["vision_coverage"], bins=np.linspace(0, 1, 11), color="#F28E2B", ax=axes[1])
@@ -216,8 +195,8 @@ def plot_coordinate_mapping(run_root: Path, output: Path) -> None:
     ax.set_ylim(0, 1)
     ax.set_yticks([])
     ax.set_xticks([row["position"] for row in rows])
-    ax.set_xlabel("WordPiece grid position")
-    ax.set_title("WordPiece positions and original-word ownership")
+    ax.set_xlabel("WordPiece 网格位置")
+    ax.set_title("WordPiece 位置与原词归属")
     ax.grid(False)
 
     ax = axes[1]
@@ -235,10 +214,10 @@ def plot_coordinate_mapping(run_root: Path, output: Path) -> None:
         ax.text(start + (end - start) / 2, len(shown_words) - 1 + 0.31, label, ha="center", va="center", fontsize=7.0)
     ax.set_ylim(-0.1, max(1, len(shown_words)))
     ax.set_yticks([])
-    ax.set_xlabel("Physical time (s), half-open intervals [t_s, t_e)")
-    ax.set_title("Word intervals used to pool audio and vision")
+    ax.set_xlabel("物理时间，半开区间 $[t_s, t_e)$")
+    ax.set_title("音视按词区间池化")
     ax.grid(axis="x", alpha=0.3)
-    fig.suptitle("Example: WordPiece → word → physical-time mapping", y=1.01, fontsize=10.5)
+    fig.suptitle("示例：WordPiece → 原词 → 物理时间映射", y=1.01, fontsize=10.5)
     save_figure(fig, output / "q1_coordinate_mapping.pdf")
 
 
@@ -253,30 +232,30 @@ def plot_behavior_detail(run_root: Path, output: Path) -> None:
     splits = ["train", "test"]
     x = np.arange(len(splits))
     width = 0.18
-    for offset, modality, color in [(-width, "audio", "#0072B2"), (0, "vision", "#D55E00")]:
+    for offset, modality, color in [(-width, "audio", MOD_COLOR["audio"]), (0, "vision", MOD_COLOR["vision"])]:
         values = [agreement[split][modality] * 100 for split in splits]
         bars = ax.bar(x + offset, values, width, label=modality, color=color)
         ax.bar_label(bars, fmt="%.1f", fontsize=6.5, padding=1)
     ax.set_xticks(x - width / 2, ["train (11)", "test (7)"])
     ax.set_ylim(80, 101)
-    ax.set_ylabel("Agreement (%)")
-    ax.set_title("Position-level nonzero agreement")
+    ax.set_ylabel("逐位一致率（%）")
+    ax.set_title("位置级非零一致率")
     ax.legend(frameon=False, fontsize=7)
 
     ax = axes[0, 1]
-    labels = ["observed", "no_face", "no_frame", "alignment_failed"]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败"]
     values = [reason.get(label, 0) * 100 for label in labels]
     ax.bar(labels, values, color=["#009E73", "#E69F00", "#CC79A7", "#D55E00"])
-    ax.set_ylabel("Content-position share (%)")
-    ax.set_title("Vision missing-reason composition")
+    ax.set_ylabel("内容位占比（%）")
+    ax.set_title("视觉缺失原因构成")
     ax.tick_params(axis="x", rotation=25)
 
     ax = axes[1, 0]
     mf = pd.read_csv(run_root / "manifest.csv")
-    sns.boxplot(data=mf[["audio_coverage", "vision_coverage"]].rename(columns={"audio_coverage": "audio", "vision_coverage": "vision"}), ax=ax, palette=["#0072B2", "#D55E00"], width=0.45)
+    sns.boxplot(data=mf[["audio_coverage", "vision_coverage"]].rename(columns={"audio_coverage": "audio", "vision_coverage": "vision"}), ax=ax, palette=[MOD_COLOR["audio"], MOD_COLOR["vision"]], width=0.45)
     ax.set_ylim(-0.03, 1.03)
-    ax.set_ylabel("Observed coverage")
-    ax.set_title("Coverage across 100 clips")
+    ax.set_ylabel("观测率")
+    ax.set_title("100 条样本观测率")
 
     ax = axes[1, 1]
     corr_labels = ["Pearson\ntrain", "Pearson\ntest", "Spearman\ntrain", "Spearman\ntest"]
@@ -285,10 +264,10 @@ def plot_behavior_detail(run_root: Path, output: Path) -> None:
     ax.bar(corr_labels, corr_values, color=colors)
     ax.axhline(0, color="#444444", linewidth=0.7)
     ax.set_ylim(-1, 1)
-    ax.set_ylabel("Correlation")
-    ax.set_title("RMS vs official L2 amplitude proxy")
+    ax.set_ylabel("相关系数")
+    ax.set_title("RMS 与官方 L2 幅值代理")
     ax.tick_params(axis="x", labelsize=6.8)
-    fig.suptitle("Question 1: fine-grained behavior checks", y=1.01, fontsize=10.5)
+    fig.suptitle("问题一：细粒度行为核查", y=1.01, fontsize=10.5)
     save_figure(fig, output / "q1_behavior_detail.pdf")
 
 
@@ -302,8 +281,8 @@ SEMANTIC_GRID_SAMPLE = "-a55Q6RWvTA$_$3"
 ATTACH_STYLE = {  # attach_type -> (填充色, 文字色, hatch)
     "special": ("#5B6470", "white", None),
     "word": ("#BFD8EA", "#1F2933", None),
-    "tail": ("#F5B971", "#1F2933", None),
-    "mid-tail": ("#F5B971", "#1F2933", "///"),
+    "tail": ("#F2CB8F", "#1F2933", None),
+    "mid-tail": ("#F2CB8F", "#1F2933", "///"),
     "ambi": ("#BFE3B4", "#1F2933", None),
 }
 
@@ -329,7 +308,7 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
         truncated = bool(r["trunc_flag"])
         ax_tok.add_patch(plt.Rectangle(
             (pos - 0.47, 0.04), 0.94, 0.64, facecolor=fill,
-            edgecolor="#C0392B" if truncated else "white",
+            edgecolor="#A94442" if truncated else "white",
             linewidth=1.5 if truncated else 0.6, hatch=hatch, zorder=2,
         ))
         ax_tok.text(pos, 0.09, r["token"], rotation=90, ha="center", va="bottom",
@@ -338,8 +317,8 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
     ax_tok.set_ylim(0, 4.1)
     ax_tok.set_yticks([])
     ax_tok.grid(False)
-    ax_tok.set_title("词元行：CLS + 前 48 个内容片 + SEP@49（填充色 = attach_type，红框 = trunc_flag）",
-                     loc="left", fontsize=8.4, pad=3)
+    ax_tok.set_title("子词行",
+                     loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
 
     # 词边界参考线（相邻位置 word_id 变化处），贯穿词元/连续量/时间三个轴
     seps = [i for i in range(1, 50) if word_ids[i] != word_ids[i - 1]]
@@ -349,12 +328,12 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
 
     # 图例（attach_type 分类；tail/mid-tail 合并，斜纹示意词内继承）
     legend_items = [
-        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["word"][0], ec="none", label="词片 word"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["word"][0], ec="none", label="内容子词"),
         plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["tail"][0], ec="none", hatch="///",
-                      label="标点 tail / mid-tail（继承前词，斜纹 = 词内）"),
-        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["ambi"][0], ec="none", label="歧义标点 ambi"),
+                      label="标点挂靠（斜纹 = 词内继承）"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["ambi"][0], ec="none", label="两可类标点"),
         plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["special"][0], ec="none", label="特殊位 CLS / SEP"),
-        plt.Rectangle((0, 0), 1, 1, fc="none", ec="#C0392B", lw=1.4, label="trunc_flag 截断边界"),
+        plt.Rectangle((0, 0), 1, 1, fc="none", ec="#A94442", lw=1.4, label="截断边界"),
     ]
     ax_tok.legend(handles=legend_items, loc="upper left", bbox_to_anchor=(0.0, 1.02),
                   frameon=False, fontsize=6.2, ncol=2, handlelength=1.3, columnspacing=0.9)
@@ -362,17 +341,17 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
     arrow = dict(arrowstyle="->", color="#374151", lw=0.7, shrinkA=1, shrinkB=1)
     # 注释按实测包围盒分带放置：带1 y∈[1.15,1.6]（短块）、带2 y∈[1.8,2.8]、带3 y∈[3.0,4.0]（图例与截断）
     # 低置信度插值词
-    ax_tok.annotate("低置信度插值\nquality ≈ 0.08", xy=(2, 0.70), xytext=(0.8, 1.58),
+    ax_tok.annotate("对齐失败插值\n质量 ≈ 0.08", xy=(2, 0.70), xytext=(0.8, 1.58),
                     ha="left", va="top", fontsize=6.4, arrowprops=arrow)
     # 多子词 + 标点继承 + alpha
-    ax_tok.annotate("多子词：coupons → coup | ##ons\n标点 , attach_type=tail 继承前词\nalpha = 1/n_wp = 1/3",
+    ax_tok.annotate("多子词：coupons → 3 个子词\n标点 , 收尾类挂靠前词\n$\\alpha_j = 1/3$",
                     xy=(6.5, 0.70), xytext=(7.5, 2.78), ha="left", va="top", fontsize=6.4,
                     arrowprops=arrow)
     # ambi 引号
-    ax_tok.annotate("歧义标点（ambi）\n归属前后词存在歧义", xy=(40, 0.70), xytext=(24, 1.58),
+    ax_tok.annotate("两可类标点\n归属前后词存在歧义", xy=(40, 0.70), xytext=(24, 1.58),
                     ha="left", va="top", fontsize=6.4, arrowprops=arrow)
     # 头部截断 + SEP@49
-    ax_tok.annotate("头部截断：仅保留 CLS + 前 48 个内容片\n其后 26 个词（t > 11.7 s）被丢弃\nSEP@49 固定末位，该位 observed_mask = 0",
+    ax_tok.annotate("头部截断：保留 CLS 与前 48 个内容子词\n其后 26 个词（t > 11.7 s）被丢弃\nSEP 固定 j = 49，该位 $o_j^m = 0$",
                     xy=(48.2, 0.70), xytext=(38.5, 3.98), ha="center", va="top", fontsize=6.4,
                     arrowprops=arrow)
 
@@ -385,11 +364,11 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
                    interpolation="nearest", vmin=0, vmax=1,
                    extent=(-0.5, 49.5, len(masks) - 0.5, -0.5))
     ax_mask.set_yticks(range(len(masks)))
-    ax_mask.set_yticklabels(["content_mask", "special_mask", "padding_mask",
-                             "observed_mask_text", "observed_mask_audio", "observed_mask_video"],
+    ax_mask.set_yticklabels(["结构·内容位", "结构·特殊位", "结构·填充位",
+                             "观测·文本", "观测·语音", "观测·视觉"],
                             fontsize=6.8)
-    ax_mask.set_title("状态掩码（浅色 = 0，深色 = 1；本样本三模态 observed_mask 逐位相同）",
-                      loc="left", fontsize=8.4, pad=3)
+    ax_mask.set_title("结构状态与观测状态（浅 = 0，深 = 1）",
+                      loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
     ax_mask.set_xticks(np.arange(51) - 0.5, minor=True)
     ax_mask.set_yticks(np.arange(len(masks) + 1) - 0.5, minor=True)
     ax_mask.grid(False)
@@ -401,8 +380,8 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
     im_aq = ax_aq.imshow(aq, aspect="auto", cmap="viridis", interpolation="nearest",
                          vmin=0, vmax=1, extent=(-0.5, 49.5, 1.5, -0.5))
     ax_aq.set_yticks([0, 1])
-    ax_aq.set_yticklabels(["alpha", "quality_audio"], fontsize=6.8)
-    ax_aq.set_title("连续状态量（本样本中 quality_video 与 quality_audio 逐位相同）", loc="left", fontsize=8.4, pad=3)
+    ax_aq.set_yticklabels(["$\\alpha_j$（词内均匀权）", "质量·语音"], fontsize=6.8)
+    ax_aq.set_title("词内均匀权与质量（音视逐位相同）", loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
     ax_aq.set_xticks(np.arange(51) - 0.5, minor=True)
     ax_aq.set_yticks(np.arange(3) - 0.5, minor=True)
     ax_aq.grid(False)
@@ -413,7 +392,7 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
         n = r.get("wp_count_in_word") or 0
         if r["attach_type"] != "special" and n > 1 and r["position"] - 1 in seps:
             ax_aq.text(r["position"], 0, f"1/{n}", ha="center", va="center",
-                       fontsize=4.8, color="white")
+                       fontsize=6.0, color="white")
     cbar = fig.colorbar(im_aq, ax=ax_aq, fraction=0.03, pad=0.01)
     cbar.ax.tick_params(labelsize=6)
     cbar.set_label("取值 0–1", fontsize=6.5)
@@ -425,16 +404,16 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
                         color="#3E7CB1", edgecolor="white", linewidth=0.25, zorder=2)
     xs = np.arange(50)
     ax_time.plot(xs, duration * (xs + 0.5) / 50, ls="--", lw=1.0, color="#888888", zorder=3,
-                 label="等间隔采样参考（22.15 s ÷ 50）")
+                 label=f"等间隔采样参考（{duration:.2f} s ÷ 50）")
     ax_time.set_ylim(0, duration * 1.05)
     ax_time.set_ylabel("物理时间 (s)")
-    ax_time.set_xlabel("语义位置（WordPiece 网格）")
-    ax_time.set_title("语义位置 → 物理时间：词区间 [t_s, t_e) 池化后复制到各 WordPiece", loc="left",
-                      fontsize=8.4, pad=3)
-    ax_time.annotate("同一词的多个 WordPiece\n复制同一 [t_s, t_e)（coupons：位置 5–7）",
+    ax_time.set_xlabel("语义位置（子词网格）")
+    ax_time.set_title("语义位置 → 物理时间（词区间池化复制）", loc="left",
+                      fontsize=FONT_SIZE["TITLE"], pad=3)
+    ax_time.annotate("同一原词的多个子词复制同一词区间\n$[t_s,\\, t_e)$（coupons：位置 5–7）",
                      xy=(6, 2.6), xytext=(0.5, 12.6), ha="left", va="top", fontsize=6.4,
                      arrowprops=arrow)
-    ax_time.annotate("虚线为名义等间隔时间；词区间明显偏离——\naudio / vision 并非 50 个等间隔帧",
+    ax_time.annotate("虚线为等间隔采样参考；词区间明显偏离——\n语音 / 视觉并非 50 个等间隔帧",
                      xy=(40, duration * 40.5 / 50), xytext=(17, 18.4), ha="left", va="top",
                      fontsize=6.4, arrowprops=arrow)
     ax_time.legend(frameon=False, fontsize=6.4, loc="lower right")
@@ -518,30 +497,30 @@ def plot_acceptance_summary(run_root: Path, output: Path) -> None:
     ax = axes[0]
     states = ["ok", "review", "rollback"]
     values = [int((mf["alignment_status"] == s).sum()) for s in states]
-    colors = ["#009E73", "#E69F00", "#999999"]
+    colors = [STATUS["ok"], STATUS["review"], STATUS["rollback"]]
     bars = ax.barh(states[::-1], values[::-1], color=colors[::-1], height=0.62)
     ax.bar_label(bars, fmt="%d", fontsize=7, padding=2)
     ax.set_xlim(0, 52)
     ax.set_xlabel("样本数")
-    ax.set_title("对齐质量状态分布", fontsize=8.4)
-    ax.text(0.5, -0.30, "N=100；质量状态标记，非管线失败", transform=ax.transAxes,
+    ax.set_title("对齐质量状态分布", loc="left", fontsize=FONT_SIZE["TITLE"])
+    ax.text(0.5, -0.30, "质量状态标记，非管线失败", transform=ax.transAxes,
             ha="center", fontsize=6.0, color="#6B7280")
 
     # Panel B：100 条观测率分布
     ax = axes[1]
     cov = mf[["audio_coverage", "vision_coverage"]].rename(
-        columns={"audio_coverage": "audio", "vision_coverage": "vision"})
-    sns.boxplot(data=cov, ax=ax, palette=["#0072B2", "#D55E00"], width=0.45, fliersize=0)
+        columns={"audio_coverage": "语音", "vision_coverage": "视觉"})
+    sns.boxplot(data=cov, ax=ax, palette=[MOD_COLOR["audio"], MOD_COLOR["vision"]], width=0.45, fliersize=0)
     sns.stripplot(data=cov, ax=ax, color="#374151", size=2.0, alpha=0.45, jitter=0.12)
     ax.set_ylim(-0.04, 1.06)
     ax.set_ylabel("观测率")
-    ax.set_title("观测率分布（observed content 位占比）", fontsize=8.4)
-    ax.text(0.5, -0.30, "audio：100/100 条 = 1.0；vision：28 条 < 1.0，中位数 1.0",
+    ax.set_title("观测率分布", loc="left", fontsize=FONT_SIZE["TITLE"])
+    ax.text(0.5, -0.30, "语音：100/100 条 = 1.0；视觉：28 条 < 1.0，中位数 1.0",
             transform=ax.transAxes, ha="center", va="top", fontsize=6.0, color="#6B7280")
 
     # Panel C：vision 缺失原因构成（content-position 级，分母 = 内容位置数）
     ax = axes[2]
-    labels = ["observed", "no_face", "no_frame", "alignment_failed"]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败"]
     shares = [vreason.get(k, 0) * 100 for k in labels]
     seg_colors = ["#009E73", "#E69F00", "#CC79A7", "#D55E00"]
     left = 0.0
@@ -556,16 +535,15 @@ def plot_acceptance_summary(run_root: Path, output: Path) -> None:
     ax.set_yticks([])
     ax.set_xlim(0, 106)
     ax.set_xlabel("占比 (%)")
-    ax.set_title("vision 缺失原因构成", fontsize=8.4)
+    ax.set_title("视觉缺失原因构成", loc="left", fontsize=FONT_SIZE["TITLE"])
     handles = [plt.Rectangle((0, 0), 1, 1, fc=c, ec="none") for c in seg_colors]
     ax.legend(handles, [f"{l} {s:.1f}%" for l, s in zip(labels, shares)],
               frameon=False, fontsize=6.0, ncol=2,
               loc="upper center", bbox_to_anchor=(0.5, -0.36), handlelength=1.1,
               columnspacing=0.8)
-    ax.text(0.99, 0.90, f"分母：vision 内容位置数 N={n_pos}", transform=ax.transAxes,
+    ax.text(0.99, 0.90, f"分母：视觉内容位置数 N={n_pos}", transform=ax.transAxes,
             ha="right", fontsize=6.0, color="#374151")
 
-    fig.suptitle("P1 验收：对齐质量与观测行为分布", y=1.02, fontsize=9.5)
     output.mkdir(parents=True, exist_ok=True)
     fig.savefig(output / "q1_acceptance_summary.pdf")
     fig.savefig(output / "q1_acceptance_summary.png", dpi=300)
