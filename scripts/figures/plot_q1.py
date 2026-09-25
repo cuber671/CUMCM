@@ -480,10 +480,10 @@ def write_acceptance_table(run_root: Path, output_dir: Path) -> None:
 
     tex = "\n".join([
         "\\begin{table}[htbp]",
-        "  \\centering",
+        "  \\centering\\small",
         "  \\caption{P1 验收汇总：精确数字（自动生成，勿手改）}",
         "  \\label{tab:q1-acceptance}",
-        "  \\begin{tabular}{llll}",
+        "  \\begin{tabular}{p{2.3cm}p{4.6cm}p{3.1cm}l}",
         "    \\toprule",
         "    验收项 & P1 实测 & 参照基准 & 判定 \\\\",
         "    \\midrule",
