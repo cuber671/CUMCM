@@ -54,6 +54,7 @@ def main(run_root: str = "runs/p1_full") -> int:
     # 1) Schema
     from src.p1.assemble import validate_sample, SCHEMA_VERSION, SCHEMA_HASH
     audio_obs, vision_obs, audio_words, vision_words = [], [], [], []
+    word_counts: dict[str, int] = {}
     audio_nz, vision_nz = [], []
     for p in samples:
         d = pickle.load(open(p, "rb"))
@@ -82,6 +83,7 @@ def main(run_root: str = "runs/p1_full") -> int:
         vision_obs.append(int(ov[cm == 1].sum())); vision_words.append(n_content)
         audio_nz.append(int((d["audio"][cm == 1].any(axis=1)).sum()))
         vision_nz.append(int((d["vision"][cm == 1].any(axis=1)).sum()))
+        word_counts[sid] = len(d.get("full_word_map") or [])
 
     # 2) 文本一致性（7 条留出）
     label_ids = set(expect_ids)
@@ -127,10 +129,12 @@ def main(run_root: str = "runs/p1_full") -> int:
     paper["特征维度(audio)"] = "50×25"
     paper["特征维度(vision)"] = "50×23"
     paper["对齐粒度"] = "词级·50步网格·半开区间"
+    paper["词数"] = [word_counts[i] for i in mf["id"]]
     paper["词片数"] = mf.get("wp_len")
     paper["对齐失败率"] = mf.get("alignment_failure_rate").round(4)
     paper["audio观测率"] = mf.get("audio_coverage").round(4)
     paper["vision观测率"] = mf.get("vision_coverage").round(4)
+    paper["对齐状态"] = mf.get("alignment_status")
     paper["处理状态"] = mf.get("status")
     paper.to_csv(root / "manifest_paper.csv", index=False, encoding="utf-8-sig")
     print(f"4) 论文汇总表: {root}/manifest_paper.csv（{len(paper)} 行，utf-8-sig 可直接入 Excel/论文）")

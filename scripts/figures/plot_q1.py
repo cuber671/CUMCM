@@ -292,6 +292,175 @@ def plot_behavior_detail(run_root: Path, output: Path) -> None:
     save_figure(fig, output / "q1_behavior_detail.pdf")
 
 
+# ---------------------------------------------------------------------------
+# 图2：50 步语义网格与状态掩码（正文主图，自动从冻结 pkl 生成）
+# ---------------------------------------------------------------------------
+# 样本固定为触发头部截断的最长样本：65 词截断为 39 词 + 48 个内容片，
+# 同图覆盖多子词 alpha、tail/mid-tail/ambi 标点继承、低置信度插值、SEP@49。
+SEMANTIC_GRID_SAMPLE = "-a55Q6RWvTA$_$3"
+
+ATTACH_STYLE = {  # attach_type -> (填充色, 文字色, hatch)
+    "special": ("#5B6470", "white", None),
+    "word": ("#BFD8EA", "#1F2933", None),
+    "tail": ("#F5B971", "#1F2933", None),
+    "mid-tail": ("#F5B971", "#1F2933", "///"),
+    "ambi": ("#BFE3B4", "#1F2933", None),
+}
+
+
+def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SAMPLE) -> None:
+    sample = pickle.load(open(run_root / "samples" / f"{sid.replace('$_$', '__')}.pkl", "rb"))
+    mrow = pd.read_csv(run_root / "manifest.csv").set_index("id").loc[sid]
+    rows = sample["wp_word_time_map"]
+    meta = sample["metadata"]
+    duration = float(meta["duration"])
+
+    fig, (ax_tok, ax_mask, ax_aq, ax_time) = plt.subplots(
+        4, 1, figsize=(6.9, 7.2), sharex=True,
+        gridspec_kw={"height_ratios": [3.2, 2.1, 1.05, 1.6]},
+    )
+    fig.subplots_adjust(hspace=0.42)
+
+    # ---- 词元行：位置 0–49 的 token，按 attach_type 着色 ----
+    word_ids = [r["word_id"] for r in rows]
+    for r in rows:
+        pos = r["position"]
+        fill, tcol, hatch = ATTACH_STYLE.get(r["attach_type"], ("#E5E7EB", "#1F2933", None))
+        truncated = bool(r["trunc_flag"])
+        ax_tok.add_patch(plt.Rectangle(
+            (pos - 0.47, 0.04), 0.94, 0.64, facecolor=fill,
+            edgecolor="#C0392B" if truncated else "white",
+            linewidth=1.5 if truncated else 0.6, hatch=hatch, zorder=2,
+        ))
+        ax_tok.text(pos, 0.09, r["token"], rotation=90, ha="center", va="bottom",
+                    fontsize=6.2, color=tcol, zorder=3)
+    ax_tok.set_xlim(-0.55, 49.55)
+    ax_tok.set_ylim(0, 4.1)
+    ax_tok.set_yticks([])
+    ax_tok.grid(False)
+    ax_tok.set_title("词元行：CLS + 前 48 个内容片 + SEP@49（填充色 = attach_type，红框 = trunc_flag）",
+                     loc="left", fontsize=8.4, pad=3)
+
+    # 词边界参考线（相邻位置 word_id 变化处），贯穿词元/连续量/时间三个轴
+    seps = [i for i in range(1, 50) if word_ids[i] != word_ids[i - 1]]
+    for ax, y0, y1 in [(ax_tok, 0.02, 0.70), (ax_aq, -0.5, 1.5), (ax_time, 0, duration * 1.04)]:
+        for i in seps:
+            ax.plot([i - 0.5, i - 0.5], [y0, y1], color="#9AA5B1", lw=0.6, alpha=0.55, zorder=1)
+
+    # 图例（attach_type 分类；tail/mid-tail 合并，斜纹示意词内继承）
+    legend_items = [
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["word"][0], ec="none", label="词片 word"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["tail"][0], ec="none", hatch="///",
+                      label="标点 tail / mid-tail（继承前词，斜纹 = 词内）"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["ambi"][0], ec="none", label="歧义标点 ambi"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["special"][0], ec="none", label="特殊位 CLS / SEP"),
+        plt.Rectangle((0, 0), 1, 1, fc="none", ec="#C0392B", lw=1.4, label="trunc_flag 截断边界"),
+    ]
+    ax_tok.legend(handles=legend_items, loc="upper left", bbox_to_anchor=(0.0, 1.02),
+                  frameon=False, fontsize=6.2, ncol=2, handlelength=1.3, columnspacing=0.9)
+
+    arrow = dict(arrowstyle="->", color="#374151", lw=0.7, shrinkA=1, shrinkB=1)
+    # 注释按实测包围盒分带放置：带1 y∈[1.15,1.6]（短块）、带2 y∈[1.8,2.8]、带3 y∈[3.0,4.0]（图例与截断）
+    # 低置信度插值词
+    ax_tok.annotate("低置信度插值\nquality ≈ 0.08", xy=(2, 0.70), xytext=(0.8, 1.58),
+                    ha="left", va="top", fontsize=6.4, arrowprops=arrow)
+    # 多子词 + 标点继承 + alpha
+    ax_tok.annotate("多子词：coupons → coup | ##ons\n标点 , attach_type=tail 继承前词\nalpha = 1/n_wp = 1/3",
+                    xy=(6.5, 0.70), xytext=(7.5, 2.78), ha="left", va="top", fontsize=6.4,
+                    arrowprops=arrow)
+    # ambi 引号
+    ax_tok.annotate("歧义标点（ambi）\n归属前后词存在歧义", xy=(40, 0.70), xytext=(24, 1.58),
+                    ha="left", va="top", fontsize=6.4, arrowprops=arrow)
+    # 头部截断 + SEP@49
+    ax_tok.annotate("头部截断：仅保留 CLS + 前 48 个内容片\n其后 26 个词（t > 11.7 s）被丢弃\nSEP@49 固定末位，该位 observed_mask = 0",
+                    xy=(48.2, 0.70), xytext=(38.5, 3.98), ha="center", va="top", fontsize=6.4,
+                    arrowprops=arrow)
+
+    # ---- 掩码行：三分区 + 三模态观测 ----
+    masks = np.vstack([
+        sample["content_mask"], sample["special_mask"], sample["padding_mask"],
+        sample["observed_mask_text"], sample["observed_mask_audio"], sample["observed_mask_video"],
+    ]).astype(int)
+    ax_mask.imshow(masks, aspect="auto", cmap=mpl.colors.ListedColormap(["#F2F2F2", "#3E7CB1"]),
+                   interpolation="nearest", vmin=0, vmax=1,
+                   extent=(-0.5, 49.5, len(masks) - 0.5, -0.5))
+    ax_mask.set_yticks(range(len(masks)))
+    ax_mask.set_yticklabels(["content_mask", "special_mask", "padding_mask",
+                             "observed_mask_text", "observed_mask_audio", "observed_mask_video"],
+                            fontsize=6.8)
+    ax_mask.set_title("状态掩码（浅色 = 0，深色 = 1；本样本三模态 observed_mask 逐位相同）",
+                      loc="left", fontsize=8.4, pad=3)
+    ax_mask.set_xticks(np.arange(51) - 0.5, minor=True)
+    ax_mask.set_yticks(np.arange(len(masks) + 1) - 0.5, minor=True)
+    ax_mask.grid(False)
+    ax_mask.grid(which="minor", color="white", lw=0.35)
+    ax_mask.tick_params(which="both", length=0)
+
+    # ---- 连续状态量：alpha 与 quality ----
+    aq = np.vstack([np.asarray(sample["alpha"]), np.asarray(sample["quality_audio"])])
+    im_aq = ax_aq.imshow(aq, aspect="auto", cmap="viridis", interpolation="nearest",
+                         vmin=0, vmax=1, extent=(-0.5, 49.5, 1.5, -0.5))
+    ax_aq.set_yticks([0, 1])
+    ax_aq.set_yticklabels(["alpha", "quality_audio"], fontsize=6.8)
+    ax_aq.set_title("连续状态量（quality_video 与 quality_audio 逐位相同）", loc="left", fontsize=8.4, pad=3)
+    ax_aq.set_xticks(np.arange(51) - 0.5, minor=True)
+    ax_aq.set_yticks(np.arange(3) - 0.5, minor=True)
+    ax_aq.grid(False)
+    ax_aq.grid(which="minor", color="white", lw=0.35)
+    ax_aq.tick_params(which="both", length=0)
+    # 在 alpha 行标注 1/n_wp（仅在多子词组首格标注，避免相邻标签粘连）
+    for r in rows:
+        n = r.get("wp_count_in_word") or 0
+        if r["attach_type"] != "special" and n > 1 and r["position"] - 1 in seps:
+            ax_aq.text(r["position"], 0, f"1/{n}", ha="center", va="center",
+                       fontsize=4.8, color="white")
+    cbar = fig.colorbar(im_aq, ax=ax_aq, fraction=0.03, pad=0.01)
+    cbar.ax.tick_params(labelsize=6)
+    cbar.set_label("取值 0–1", fontsize=6.5)
+
+    # ---- 位置 → 物理时间：词区间池化，非等间隔帧 ----
+    for r in rows:
+        if r["t_s"] is not None:
+            ax_time.bar(r["position"], r["t_e"] - r["t_s"], bottom=r["t_s"], width=0.86,
+                        color="#3E7CB1", edgecolor="white", linewidth=0.25, zorder=2)
+    xs = np.arange(50)
+    ax_time.plot(xs, duration * (xs + 0.5) / 50, ls="--", lw=1.0, color="#888888", zorder=3,
+                 label="等间隔采样参考（22.15 s ÷ 50）")
+    ax_time.set_ylim(0, duration * 1.05)
+    ax_time.set_ylabel("物理时间 (s)")
+    ax_time.set_xlabel("语义位置（WordPiece 网格）")
+    ax_time.set_title("语义位置 → 物理时间：词区间 [t_s, t_e) 池化后复制到各 WordPiece", loc="left",
+                      fontsize=8.4, pad=3)
+    ax_time.annotate("同一词的多个 WordPiece\n复制同一 [t_s, t_e)（coupons：位置 5–7）",
+                     xy=(6, 2.6), xytext=(0.5, 12.6), ha="left", va="top", fontsize=6.4,
+                     arrowprops=arrow)
+    ax_time.annotate("虚线为名义等间隔时间；词区间明显偏离——\naudio / vision 并非 50 个等间隔帧",
+                     xy=(40, duration * 40.5 / 50), xytext=(17, 18.4), ha="left", va="top",
+                     fontsize=6.4, arrowprops=arrow)
+    ax_time.legend(frameon=False, fontsize=6.4, loc="lower right")
+
+    ax_time.set_xticks(list(range(0, 50, 5)) + [49])
+    ax_time.tick_params(axis="x", labelbottom=True)
+    for ax in (ax_tok, ax_mask, ax_aq):
+        ax.tick_params(axis="x", labelbottom=False)
+
+    output.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output / "q1_semantic_grid.pdf")
+    fig.savefig(output / "q1_semantic_grid.png", dpi=300)
+    plt.close(fig)
+
+    kept_words = sum(1 for w in sample["full_word_map"] if not w.get("dropped"))
+    print("图2 caption 素材：")
+    print(f"  样本 {sid}（{meta['video_id']} 片段 {meta['clip_id']}，{mrow['split']}）")
+    print(f"  词数 {len(sample['full_word_map'])} → 保留 {kept_words}（截断丢弃 "
+          f"{len(sample['full_word_map']) - kept_words}），内容片 48，CLS@0 + SEP@49，"
+          f"trunc_flag 位于位置 47–48")
+    print(f"  时长 {duration:.2f} s，fps {float(mrow['fps']):.4f}"
+          f"（{'VFR' if bool(mrow['is_vfr']) else 'CFR'}），模态维度 text 50×768 / audio 50×25 / vision 50×23")
+    print(f"  对齐状态 {mrow['alignment_status']}，对齐失败率 {float(mrow['alignment_failure_rate']):.4f}，"
+          f"audio/vision 观测率 {float(mrow['audio_coverage']):.3f}/{float(mrow['vision_coverage']):.3f}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-root", type=Path, default=DEFAULT_RUN)
@@ -305,6 +474,7 @@ def main() -> int:
     plot_fps_distribution(args.run_root, args.output)
     plot_coordinate_mapping(args.run_root, args.output)
     plot_behavior_detail(args.run_root, args.output)
+    plot_semantic_grid(args.run_root, args.output)
     print(f"Generated Q1 figures in {args.output}")
     return 0
 
