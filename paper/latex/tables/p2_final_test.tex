@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+  \centering
+  \caption{最终 test 结果（附件2 test，clean 口径；单模型均值与集成属不同口径不可直接比较；MRFN+ 未做 31 场景评估、不构造鲁棒性曲线。自动生成）}
+  \label{tab:p2-final}
+  \begin{tabular}{llrrrr}
+    \toprule
+    模型 & 评估批次 & Acc & macro-F1 & MAE & $S$ \\
+    \midrule
+    MRFN & 主表首次 test & 66.71\% & 62.52\% & 0.634 & 0.756 \\
+    MRFN+（单模型均值） & 预注册追加 test & 67.45\% & 62.80\% & 0.644 & 0.760 \\
+    MRFN+（3-seed 集成） & 预注册追加 test & 68.64\% & 63.86\% & 0.614 & 0.769 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
