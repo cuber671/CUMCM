@@ -156,7 +156,7 @@ def write_tables() -> None:
         "  \\caption{模型阶梯表（附件2 test，clean 评估 + 31 场景均值退化；3-seed 均值，自动生成）}",
         "  \\label{tab:p2-ladder}",
         "  \\begin{tabular}{lrrrrrrr}", "    \\toprule",
-        "    模型 & 参数量 & Acc & macro-F1 & MAE & Pearson & $S$ & $\\overline{D_S}$ \\\\",
+        "    模型 & 参数量 & Acc & macro-F1 & MAE & Pearson & $\mathcal{S}$ & $\\overline{D_S}$ \\\\",
         "    \\midrule", *rows, "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
     ]), encoding="utf-8")
 
@@ -167,7 +167,7 @@ def write_tables() -> None:
                               else fmt3(sum(rec["masked_S_mean"].values()) / 31))
     (TAB_OUT / "p2_transfer.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{2$\\times$2 迁移表（同架构 MRFN，只变训练方式；$S$，3-seed 均值，自动生成）}",
+        "  \\caption{2$\\times$2 迁移表（同架构 MRFN，只变训练方式；$\mathcal{S}$，3-seed 均值，自动生成）}",
         "  \\label{tab:p2-transfer}",
         "  \\begin{tabular}{lcc}", "    \\toprule",
         "    训练方式$\\backslash$测试 & clean test & 31 场景均值 \\\\", "    \\midrule",
@@ -199,10 +199,10 @@ def write_tables() -> None:
                     f"{s31 - base31:+.3f} \\\\")
     (TAB_OUT / "p2_ablation.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{消融与填充基线（$S$，3-seed 均值；$\\Delta$ 相对完整 MRFN 的 31 场景均值，自动生成）}",
+        "  \\caption{消融与填充基线（$\mathcal{S}$，3-seed 均值；$\\Delta$ 相对完整 MRFN 的 31 场景均值，自动生成）}",
         "  \\label{tab:p2-ablation}",
         "  \\begin{tabular}{lrccc}", "    \\toprule",
-        "    变体 & 参数量 & clean $S$ & 31 场景均值 $S$ & $\\Delta$ \\\\", "    \\midrule",
+        "    变体 & 参数量 & clean $\mathcal{S}$ & 31 场景均值 $\mathcal{S}$ & $\\Delta$ \\\\", "    \\midrule",
         *rows, "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
     ]), encoding="utf-8")
 
@@ -217,7 +217,7 @@ def write_tables() -> None:
         "MRFN+ 未做 31 场景评估、不构造鲁棒性曲线。自动生成）}",
         "  \\label{tab:p2-final}",
         "  \\begin{tabular}{llrrrr}", "    \\toprule",
-        "    模型 & 评估批次 & Acc & macro-F1 & MAE & $S$ \\\\", "    \\midrule",
+        "    模型 & 评估批次 & Acc & macro-F1 & MAE & $\mathcal{S}$ \\\\", "    \\midrule",
         f"    MRFN & 主表首次 test & {r(mrfn['acc']['mean'])} & {r(mrfn['macro_f1']['mean'])} & "
         f"{fmt3(mrfn['mae']['mean'])} & {fmt3(mrfn['S']['mean'])} \\\\",
         f"    MRFN+（单模型均值） & 预注册追加 test & {r(single['acc']['mean'])} & "
