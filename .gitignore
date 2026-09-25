@@ -1,6 +1,5 @@
 # 环境与运行产物（不入库，复现靠 requirements.lock + environment-manifest.json）
 .venv/
-runs/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
@@ -8,11 +7,17 @@ __pycache__/
 # 大体积数据（附件共 ~4GB；数据版本由 data_manifest.json 审计冻结代替入库）
 data/
 
-# 模型权重缓存
+# 模型权重缓存（第三方预训练，可重新下载）
 cache/
 *.pt
-!runs/**/checkpoint.pt
 
 # 临时
 *.log
 .DS_Store
+
+# 自训模型权重入库：各 run 的 checkpoint.pt（MRFN 权重，单个 ≤2MB，共 67 个 ~100MB）
+# bert_checkpoint.pt（微调 BERT 全量权重，438MB/个）超 GitHub 单文件 100MB 硬限制，不入库
+runs/**
+!runs/**/
+!runs/**/checkpoint.pt
+runs/**/bert_checkpoint.pt
