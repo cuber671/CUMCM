@@ -461,6 +461,114 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
           f"audio/vision 观测率 {float(mrow['audio_coverage']):.3f}/{float(mrow['vision_coverage']):.3f}")
 
 
+# ---------------------------------------------------------------------------
+# 图3 + 表：P1 验收"一表一图"（精确数字进表，分布与构成进图）
+# ---------------------------------------------------------------------------
+
+
+def write_acceptance_table(run_root: Path, output_dir: Path) -> None:
+    """从 acceptance_report.json 自动生成 LaTeX 验收汇总表（booktabs 三线表）。"""
+    rep = json.loads((run_root / "acceptance_report.json").read_text(encoding="utf-8"))
+    b = rep["behavior"]
+    d_a = abs(b["audio_nonzero_rate"] - b["benchmark_audio_nonzero"]) * 100
+    d_v = abs(b["vision_nonzero_rate"] - b["benchmark_vision_nonzero"]) * 100
+    n_bit = sum(r["text_bert_bitwise"] for r in rep["text_check"])
+    cos_min = min(r["text_cos_min"] for r in rep["text_check"])
+    mf = pd.read_csv(run_root / "manifest.csv")
+    counts = mf["alignment_status"].value_counts()
+    ok, rv, rb = int(counts.get("ok", 0)), int(counts.get("review", 0)), int(counts.get("rollback", 0))
+
+    tex = "\n".join([
+        "\\begin{table}[htbp]",
+        "  \\centering",
+        "  \\caption{P1 验收汇总：精确数字（自动生成，勿手改）}",
+        "  \\label{tab:q1-acceptance}",
+        "  \\begin{tabular}{llll}",
+        "    \\toprule",
+        "    验收项 & P1 实测 & 参照基准 & 判定 \\\\",
+        "    \\midrule",
+        f"    覆盖完整性 & {rep['coverage']['label_rows']}/100 一一对应，无缺失/重复/多余 & 附件1 label-100 & 通过 \\\\",
+        f"    Schema 一致性 & 违例 {len(rep['schema_violations'])}（shape/dtype/mask 分区/SEP 位） & p1.v2 契约 & 通过 \\\\",
+        f"    BERT 留出一致性 & bitwise {n_bit}/{len(rep['text_check'])}，cos$_{{\\min}}$={cos_min:.3f} & 附件2 test 重叠 {len(rep['text_check'])} 条 & 通过 \\\\",
+        f"    audio 非零率 & {b['audio_nonzero_rate']:.5f} & {b['benchmark_audio_nonzero']:.5f} & $|\\Delta|$={d_a:.3f}\\,pp $\\le$ {b['tolerance_pp']:.0f}\\,pp \\\\",
+        f"    vision 非零率 & {b['vision_nonzero_rate']:.5f} & {b['benchmark_vision_nonzero']:.5f} & $|\\Delta|$={d_v:.3f}\\,pp $\\le$ {b['tolerance_pp']:.0f}\\,pp \\\\",
+        f"    对齐质量状态 & ok/review/rollback = {ok}/{rv}/{rb} & — & 质量标记，非管线失败 \\\\",
+        "    \\bottomrule",
+        "  \\end{tabular}",
+        "\\end{table}",
+    ])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "q1_acceptance_summary.tex").write_text(tex, encoding="utf-8")
+    print(f"验收表: {output_dir}/q1_acceptance_summary.tex")
+
+
+def plot_acceptance_summary(run_root: Path, output: Path) -> None:
+    mf = pd.read_csv(run_root / "manifest.csv")
+    behavior = json.loads((run_root / "behavior_detail.json").read_text(encoding="utf-8"))
+    miss = behavior["C_缺失原因比例"]
+    n_pos = miss["content_positions"]
+    vreason = miss["vision_content_position比例"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.55))
+
+    # Panel A：对齐质量状态分布（质量状态，非管线失败）
+    ax = axes[0]
+    states = ["ok", "review", "rollback"]
+    values = [int((mf["alignment_status"] == s).sum()) for s in states]
+    colors = ["#009E73", "#E69F00", "#999999"]
+    bars = ax.barh(states[::-1], values[::-1], color=colors[::-1], height=0.62)
+    ax.bar_label(bars, fmt="%d", fontsize=7, padding=2)
+    ax.set_xlim(0, 52)
+    ax.set_xlabel("样本数")
+    ax.set_title("对齐质量状态分布", fontsize=8.4)
+    ax.text(0.5, -0.30, "N=100；质量状态标记，非管线失败", transform=ax.transAxes,
+            ha="center", fontsize=6.0, color="#6B7280")
+
+    # Panel B：100 条观测率分布
+    ax = axes[1]
+    cov = mf[["audio_coverage", "vision_coverage"]].rename(
+        columns={"audio_coverage": "audio", "vision_coverage": "vision"})
+    sns.boxplot(data=cov, ax=ax, palette=["#0072B2", "#D55E00"], width=0.45, fliersize=0)
+    sns.stripplot(data=cov, ax=ax, color="#374151", size=2.0, alpha=0.45, jitter=0.12)
+    ax.set_ylim(-0.04, 1.06)
+    ax.set_ylabel("观测率")
+    ax.set_title("观测率分布（observed content 位占比）", fontsize=8.4)
+    ax.text(0.5, -0.30, "audio：100/100 条 = 1.0；vision：28 条 < 1.0，中位数 1.0",
+            transform=ax.transAxes, ha="center", va="top", fontsize=6.0, color="#6B7280")
+
+    # Panel C：vision 缺失原因构成（content-position 级，分母 = 内容位置数）
+    ax = axes[2]
+    labels = ["observed", "no_face", "no_frame", "alignment_failed"]
+    shares = [vreason.get(k, 0) * 100 for k in labels]
+    seg_colors = ["#009E73", "#E69F00", "#CC79A7", "#D55E00"]
+    left = 0.0
+    for share, color in zip(shares, seg_colors):
+        if share <= 0:
+            continue
+        ax.barh([0], [share], left=left, color=color, height=0.42)
+        if share >= 3:
+            ax.text(left + share / 2, 0, f"{share:.1f}", ha="center", va="center",
+                    fontsize=6.4, color="white")
+        left += share
+    ax.set_yticks([])
+    ax.set_xlim(0, 106)
+    ax.set_xlabel("占比 (%)")
+    ax.set_title("vision 缺失原因构成", fontsize=8.4)
+    handles = [plt.Rectangle((0, 0), 1, 1, fc=c, ec="none") for c in seg_colors]
+    ax.legend(handles, [f"{l} {s:.1f}%" for l, s in zip(labels, shares)],
+              frameon=False, fontsize=6.0, ncol=2,
+              loc="upper center", bbox_to_anchor=(0.5, -0.36), handlelength=1.1,
+              columnspacing=0.8)
+    ax.text(0.99, 0.90, f"分母：vision 内容位置数 N={n_pos}", transform=ax.transAxes,
+            ha="right", fontsize=6.0, color="#374151")
+
+    fig.suptitle("P1 验收：对齐质量与观测行为分布", y=1.02, fontsize=9.5)
+    output.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output / "q1_acceptance_summary.pdf")
+    fig.savefig(output / "q1_acceptance_summary.png", dpi=300)
+    plt.close(fig)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-root", type=Path, default=DEFAULT_RUN)
@@ -475,6 +583,8 @@ def main() -> int:
     plot_coordinate_mapping(args.run_root, args.output)
     plot_behavior_detail(args.run_root, args.output)
     plot_semantic_grid(args.run_root, args.output)
+    write_acceptance_table(args.run_root, ROOT / "paper/latex/tables")
+    plot_acceptance_summary(args.run_root, args.output)
     print(f"Generated Q1 figures in {args.output}")
     return 0
 

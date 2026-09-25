@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+  \centering
+  \caption{P1 验收汇总：精确数字（自动生成，勿手改）}
+  \label{tab:q1-acceptance}
+  \begin{tabular}{llll}
+    \toprule
+    验收项 & P1 实测 & 参照基准 & 判定 \\
+    \midrule
+    覆盖完整性 & 100/100 一一对应，无缺失/重复/多余 & 附件1 label-100 & 通过 \\
+    Schema 一致性 & 违例 0（shape/dtype/mask 分区/SEP 位） & p1.v2 契约 & 通过 \\
+    BERT 留出一致性 & bitwise 7/7，cos$_{\min}$=1.000 & 附件2 test 重叠 7 条 & 通过 \\
+    audio 非零率 & 1.00000 & 0.99915 & $|\Delta|$=0.085\,pp $\le$ 2\,pp \\
+    vision 非零率 & 0.94704 & 0.94473 & $|\Delta|$=0.231\,pp $\le$ 2\,pp \\
+    对齐质量状态 & ok/review/rollback = 43/33/24 & — & 质量标记，非管线失败 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

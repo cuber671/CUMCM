@@ -142,7 +142,7 @@ def main() -> int:
     ax_pos.set_xticks(list(range(n_valid)))
     ax_pos.tick_params(axis="x", labelsize=5.8)
     ax_pos.grid(False)
-    ax_pos.set_xlabel("语义位置（WordPiece 网格，position 域；本样本有效 20 / 50 位）")
+    ax_pos.set_xlabel("语义位置（WordPiece 网格，position 域；content=18/50，含 CLS/SEP 的 attention 有效位=20/50）")
     ax_pos.set_title("文本轨：BERT 逐位置输出，词分组着色（多子词同色相连）",
                      loc="left", fontsize=8.4, pad=3)
 
