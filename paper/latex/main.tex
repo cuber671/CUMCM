@@ -396,7 +396,42 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 \textbf{训练与评测的统一生成。}评测用缺失场景由独立种子的掩码库预生成，保证不同模型在同一场景集合上严格可比；训练期的缺失按分量在线生成并混合，各分量占该批训练样本的比例为：附件3 模式的联合局部合成缺失 35\%（以附件3 实测模式为模板生成，与附件3 数据本身的缺失比例无关）、MCAR 与 Block 合计 40\%、整模态 15\%、干净样本 10\%（配比的设定依据随 \ref{subsec:q2-train}~节训练方案说明，消融见 \ref{subsec:q2-robust}~节）。掩码库种子与训练种子分离，评测场景对训练过程不可见。
 
 \subsection{MRFN 模型的建立}\label{subsec:q2-mrfn}
-%（5.2 正文待审阅定稿后接入）整体数据流见图~\ref{fig:q2-arch}。
+本节的数学任务是：在观测状态作为显式输入的条件下，建立能够利用模态可用性信息进行编码、交互与融合的预测模型——缺失感知可靠融合网络（Missing-aware Reliability Fusion Network, MRFN）。2.2 节已按数据流顺序指出其三个机制，本节依次给出数学定义。
+
+\textbf{任务形式化。}模型输入为附件2 对齐特征与 4.2 节的状态标注（结构状态 $s$、自然观测 $o$、合成缺失 $b$、可用性 $a=o\cdot(1-b)$），输出极性 logits 与强度预测：
+\begin{equation}
+F:(x,\,s,\,a)\ \mapsto\ \bigl(\mathrm{logits}\in\mathbb{R}^{3},\ \hat y=3\tanh(\cdot)\in[-3,3]\bigr),
+\end{equation}
+多任务联合损失为
+\begin{equation}
+\mathcal{L}=\mathrm{CE}\bigl(\mathrm{softmax}(\mathrm{logits}),\,y_{cls}\bigr)+\lambda_r\cdot\bigl|\hat y-y_{reg}\bigr|_{\mathrm{mean}},
+\end{equation}
+其中 $\lambda_r=1$（冻结，分类与回归等权）。
+
+\textbf{机制一：缺失状态编码（输入端）。}结构状态 $s_j$ 为类别量，在数值公式中以\textbf{内容位指示量}出现：记 $\chi_j=\mathbf{1}[s_j=\text{内容位}]$。模态 $m$ 在位置 $j$ 的输入嵌入为
+\begin{equation}
+z_j^{m}=p_j+\tilde x_j^{m}+(1-a_j^{m})\,e^{m},
+\end{equation}
+其中 $\tilde x_j^{m}$ 由\textbf{选择运算}定义：$a_j^m=1$ 时取 $x_j^m$、否则取 $0$——数学上等价于门控乘积 $a_j^m x_j^m$，但实现采用选择而非乘法，保证不可用位的特征值（包括数值异常占位）物理上不进入计算图（"缺失位不得读取"）。$p_j$ 为可学习位置嵌入、$e^{m}$ 为按模态独立的缺失嵌入；整模态缺失时输入退化为 $p_j+e^{m}$ 而非全零——缺失本身成为显式输入变量。
+
+\textbf{机制二：可用性约束跨模态注意力。}对每个方向 $q\leftarrow e$（共六方向），证据可用性定义为 $m_j^{e}=\chi_j\,a_j^{e}$。单头形式（多头为其并行推广；实现为工作维 64、2 头）：
+\begin{equation}
+\omega_{jj'}=\mathrm{softmax}_{j'}\!\left(\frac{(W_Q z_j^{q})^{\top}(W_K z_{j'}^{e})}{\sqrt{d_h}}+\log m_{j'}^{e}\right),\qquad
+A_{q\leftarrow e}(j)=W_O\sum_{j'}\omega_{jj'}\,m_{j'}^{e}\,W_V z_{j'}^{e}.
+\end{equation}
+$m^e=0$ 的位置经 $\log m=-\infty$ 在 softmax 中获得零权重，值侧再乘 $m^e$，构成双侧屏蔽——不可用位不作为证据。实现中另含\textbf{显式置零分支}：当证据模态全部位置不可用（$\sum_j m_j^e=0$）时，注意力输出虽为零、输出投影 $W_O$ 的偏置仍会引入非零值，故该方向输出被直接置零（该分支为代码的确定性处置，非掩码 softmax 的自然结果）。缺失位不作证据，但可作为查询位接受其他模态的上下文补偿。
+
+\textbf{机制三：可靠性门控融合。}每个模态经"线性投影$\to$内容窗双向 GRU$\to$两个方向注意力增广$\to$内容位掩码池化"得到模态表示 $\tilde h_m$；模态覆盖率定义为
+\begin{equation}
+c_m=\frac{\sum_j \chi_j\, a_j^{m}}{\sum_j \chi_j}\in[0,1]
+\end{equation}
+（内容位上的可用比例）。门控与融合为
+\begin{equation}
+g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\mathrm{audio}};\tilde h_{\mathrm{vision}};\,c_{\mathrm{text}};c_{\mathrm{audio}};c_{\mathrm{vision}}]\bigr)\Bigr),\qquad h=\sum_{m}g_m\,\tilde h_{m},
+\end{equation}
+双输出头作用于融合表示 $h$；门控输出 $g_m$ 记录为融合层的信任分配，供 \ref{subsec:q2-robust}~节门控响应检验与第六章一致性分析使用。
+
+模型整体数据流如图~\ref{fig:q2-arch}~所示：左列为缺失空间与状态记号（$(M,P,r,\bar l)$、$a=o\cdot(1-b)$、文本编码前 [MASK] 替换），右列为七层数据流（输入嵌入$\to$分支编码$\to$六方向注意力$\to$池化$\to$门控$\to$融合$\to$双头），与代码契约逐条对应。从图中可以看出，三个机制恰好对应数据流的三个环节——输入端（状态编码）、交互端（注意力约束）与融合端（门控重分配），观测状态自下而上贯穿全程；输入维度为附件2 官方 74/35（区别于问题一自产 25/23，呼应 2.1 节"统一坐标与特征来源分层"）。
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_mrfn_architecture.pdf}
