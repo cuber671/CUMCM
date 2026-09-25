@@ -382,48 +382,58 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 
 \section{问题二：缺失场景下鲁棒情感预测模型的建立与求解}
 %（素材：docs/问题二实施步骤.md §1–§9）
-\subsection{缺失空间与 MRFN 架构}
-缺失空间 $(M,P,R,L)$ 与 MRFN 数据流见图~\ref{fig:q2-arch}。
+第四章交付了统一时序坐标系与三项坐标资产。本章在其上建立问题二的鲁棒情感预测模型：\ref{subsec:q2-missing}~节形式化缺失空间与合成缺失算子，\ref{subsec:q2-mrfn}~节建立 MRFN 模型，\ref{subsec:q2-train}~节给出训练方案与模型阶梯，\ref{subsec:q2-robust}~节建立鲁棒性评价体系并开展 31 场景实验，\ref{subsec:q2-final}~节报告模型改进与追加终评，\ref{subsec:q2-fj3}~节完成附件3 的预测与行为分析。
+
+\subsection{缺失空间的数学描述}\label{subsec:q2-missing}
+本节的数学任务是：将模态局部缺失形式化为可控的缺失空间与合成缺失算子，使 1.3 节要求分析的三类影响因素——缺失模态类型、缺失位置、缺失时长——成为算子的显式参数，并为训练与评测提供统一的缺失生成机制。
+
+\textbf{缺失空间的四元组。}一个缺失场景由 $(M, P, r, \bar l)$ 描述：$M\subseteq\{\text{文本},\text{语音},\text{视觉}\}$ 为被抹除的模态集合（非空，共 7 种组合）；$P\in\{\text{头},\text{中},\text{尾},\text{随机}\}$ 为缺失段在序列中的位置模式；$r$ 为缺失率，即该模态被抹除的内容位数与内容位总数之比；$\bar l$ 为平均段长，即各被抹连续段的平均长度。缺失模态类型对应 $M$、缺失位置对应 $P$，缺失的规模与连续性形态由 $r$ 与 $\bar l$ 共同刻画（$\bar l$ 小为短散段、$\bar l$ 大为连续块）。需要明确，$\bar l$ 是缺失场景的\textbf{统计描述量}，用于刻画与归类场景；缺失段的段数与段长分布由所选缺失机制的取样规则显式给出（见下文），而非由 $\bar l$ 直接生成。
+
+\textbf{合成缺失算子。}算子 $\gamma_{M,P,r,\bar l}$ 在 4.2 节坐标系上定义：对每个 $m\in M$，按所选机制的取样规则生成内容位子集 $S_m$——其基数满足率 $r$、段位置满足 $P$、段数与段长按机制分布取样，置 $b_j^m=\mathbf{1}[j\in S_m]$，可用状态更新为 $a_j^m=o_j^m(1-b_j^m)$。特征的实现分模态：语音/视觉在 $S_m$ 上置零；\textbf{文本在被抹位置将子词替换为 [MASK] 后整体重新编码}——对应 3.1 节实现规则：若在编码后置零，邻近子词已吸收被抹内容的信息，掩码将形同虚设（其防泄漏效果的检验为 H10）。两条全局约束：结构位（CLS/SEP/填充位）不参与抹除；真实零值不改变 $o$——自然缺失与合成缺失在记录中始终分离。此外，算子默认保证至少一个模态的可用率不低于 20\%（避免任务退化为三模态同时高缺失）；该默认约束在评测网格中仅被三模态联合缺失的边界对照场景豁免——豁免场景在 \ref{subsec:q2-robust}~节网格定义中作为独立条目显式列出、可复算。
+
+\textbf{四种缺失机制。}位置与段长的取样规则即缺失机制，本文采用四种：①\textbf{随机散布（合成机制名 MCAR）}——位置均匀随机抽取、与特征取值无关，段为逐位散布；该名称仅描述合成算子的取样规则，不构成对真实数据缺失机制的统计判断；②\textbf{Block（连续块）}——单个连续块，块长在 $[5,\,0.6\times\text{内容位数}]$ 上均匀取样、位置由 $P$ 指定，对应题面"连续时间段不可用"的典型场景；③\textbf{联合缺失}——语音与视觉同位置同步抹除，段长按附件3 实测联合零行的经验分布取样；④\textbf{整模态缺失}——$M$ 中模态的全部内容位被抹除。需要说明两点：其一，附件3 的实测模式（30 条中 27 条存在局部联合缺失）在此仅作为联合机制段长分布的\textbf{经验参照}，本文不对真实数据的缺失机制作统计命名（如 MAR/MNAR），亦不声称恢复其成因；其二，\textbf{整模态缺失的从属关系}：问题二的研究边界为模态局部缺失，整模态缺失仅作为训练中的边界覆盖分量与评测网格的极端对照场景引入——其作用是检验模型在缺失程度趋于极端时的行为下界，并为模型在模态近乎完全缺失的极端输入状态提供训练覆盖，不扩大研究边界。
+
+\textbf{训练与评测的统一生成。}评测用缺失场景由独立种子的掩码库预生成，保证不同模型在同一场景集合上严格可比；训练期的缺失按分量在线生成并混合，各分量占该批训练样本的比例为：附件3 模式的联合局部合成缺失 35\%（以附件3 实测模式为模板生成，与附件3 数据本身的缺失比例无关）、MCAR 与 Block 合计 40\%、整模态 15\%、干净样本 10\%（配比的设定依据随 \ref{subsec:q2-train}~节训练方案说明，消融见 \ref{subsec:q2-robust}~节）。掩码库种子与训练种子分离，评测场景对训练过程不可见。
+
+\subsection{MRFN 模型的建立}\label{subsec:q2-mrfn}
+%（5.2 正文待审阅定稿后接入）整体数据流见图~\ref{fig:q2-arch}。
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_mrfn_architecture.pdf}
-  \caption{缺失空间与 MRFN 结构图（左列：$(M,P,R,L)$、$a{=}o\cdot(1{-}b)$、
-  text 编码前 [MASK] 替换；右列：七层数据流，与代码契约逐条对应；
-  输入维度为附件2 官方 74/35，区别于 P1 自产 25/23）。}
+  \caption{缺失空间与 MRFN 结构图（左列：$(M,P,r,\bar l)$、$a{=}o\cdot(1{-}b)$、
+  文本编码前 [MASK] 替换；右列：七层数据流，与代码契约逐条对应；
+  输入维度为附件2 官方 74/35，区别于问题一自产 25/23）。}
   \label{fig:q2-arch}
 \end{figure}
 
-\subsection{模型阶梯与 31 场景鲁棒性}
-阶梯与退化结果见表~\ref{tab:p2-ladder}、图~\ref{fig:q2-deg}~与图~\ref{fig:q2-heat}。
+\subsection{训练方案与模型阶梯}\label{subsec:q2-train}
+%（5.3 正文待审阅定稿后接入）阶梯结果见表~\ref{tab:p2-ladder}。
 \input{tables/p2_ladder.tex}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_degradation.pdf}
   \caption{缺失率—性能退化曲线（附件2 test，31 网格冻结协议）：MRFN 双优——
-  clean $S{=}0.7561$ 最高且 text@80 退化最小（0.618 vs B3 0.557）。}
+  clean $\mathcal{S}{=}0.7561$ 最高且 text@80 退化最小（0.618 vs B3 0.557）。}
   \label{fig:q2-deg}
 \end{figure}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_scenario_heatmap.pdf}
-  \caption{31 缺失场景性能退化热力图（$D_S$，颜色越深退化越大）。}
+  \caption{31 缺失场景性能退化热力图（$D_{\mathcal{S}}$，颜色越深退化越大）。}
   \label{fig:q2-heat}
 \end{figure}
-
-\subsection{迁移与消融}
-见 2$\times$2 迁移表（表~\ref{tab:p2-transfer}）与消融表（表~\ref{tab:p2-ablation}）。
+\subsection{鲁棒性评价体系与 31 场景实验}\label{subsec:q2-robust}
+%（5.4 正文待审阅定稿后接入；下含退化曲线、热力图、迁移 2×2 与消融表）
 \input{tables/p2_transfer.tex}
 \input{tables/p2_ablation.tex}
 
-\subsection{模型改进、采纳与追加终评}
-MRFN 为附件2 主表的冻结正式模型；MRFN+ 为 valid 预注册筛选后采纳的补充
-变体，其追加 test 结果不替换主表、亦无 31 场景鲁棒性曲线（表~\ref{tab:p2-final}，
-评估批次列区分两种口径）。
+\subsection{模型改进、采纳与追加终评}\label{subsec:q2-final}
+%（5.5 正文待审阅定稿后接入；MRFN=主表冻结正式模型，MRFN+=valid 预注册筛选
+% 采纳的补充变体，追加 test 不替换主表、无 31 场景曲线；表见下）
 \input{tables/p2_final_test.tex}
 
-\subsection{附件3 交付（无标签，仅行为分析）}
-行为分析见图~\ref{fig:q2-fj3}：门控与 text-only 一致率两组均未观察到预期的
-单调重分配/趋同，如实报告。
+\subsection{附件3 预测与行为分析}\label{subsec:q2-fj3}
+%（5.6 正文待审阅定稿后接入；无标签不做精度声明；行为分析见图 q2_fj3）
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_fj3_behavior.pdf}
