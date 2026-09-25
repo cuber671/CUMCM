@@ -203,7 +203,7 @@
   \begin{tabularx}{\textwidth}{@{}p{41mm}X@{}}
     \toprule
     符号 & 含义 \\
-    \midrule
+    \addlinespace[3pt]
     \multicolumn{2}{@{}l}{\textbf{数据与坐标}} \\
     $m\in\{\mathrm{text},\mathrm{audio},\mathrm{vision}\}$ & 模态（行文分别称文本、语音、视觉，下标简写 $t/a/v$） \\
     $j=1,\dots,50$ & 序列位置（子词位置，即问题一网格的 50 个模型位置） \\
@@ -215,20 +215,20 @@
     $a_j^{m}=o_j^{m}(1-b_j^{m})$ & 可用状态 \\
     $[t_s,t_e)$ & 词的物理时间半开区间 \\
     $\alpha_j=1/n_w$ & 词内子词均匀权（位置$\to$原词聚合） \\
-    \midrule
+    \addlinespace[3pt]
     \multicolumn{2}{@{}l}{\textbf{预测模型}} \\
     $F$ & 情感预测器（极性与强度双输出） \\
     $g_m$ & 融合层对模态 $m$ 的门控信任 \\
     $p$；$\hat y$ & 极性概率向量；强度预测值 \\
     $\lambda_r$ & 回归损失权重（第五章多任务联合损失） \\
-    \midrule
+    \addlinespace[3pt]
     \multicolumn{2}{@{}l}{\textbf{缺失与评价}} \\
     $r$；$\bar l$ & 缺失率；平均缺失段长（缺失空间 $(M,P,r,\bar l)$ 的组成部分） \\
     $U$；$U_{\mathrm{MAE}}$；$U_{\mathrm{Pearson}}$ & 效用及其回归任务转化：$U_{\mathrm{MAE}}=\mathrm{clip}(1-\mathrm{MAE}/6,0,1)$，$U_{\mathrm{Pearson}}=(r_p+1)/2$（$r_p$ 为皮尔逊相关系数；常数 6 的依据见第五章） \\
     $\mathcal{S}$ & 综合效用分（分类与回归效用均值） \\
     $D_U(r)$ & 缺失率 $r$ 下的效用相对下降率；$D_{\mathcal{S}}$ 为综合分下降率 \\
     $\mathcal{S}_{\mathrm{sel}}$ & 验证集选型分（干净与关键缺失场景的加权和） \\
-    \midrule
+    \addlinespace[3pt]
     \multicolumn{2}{@{}l}{\textbf{解释框架}} \\
     $N$ & 模态全集 $\{\mathrm{text},\mathrm{audio},\mathrm{vision}\}$ \\
     $S\subseteq N$；$v(S)$；$v(\varnothing)$ & 模态联盟；联盟值（分类 $v^{cls}$／强度 $v^{r}$）；空联盟值 \\
