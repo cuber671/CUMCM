@@ -171,7 +171,7 @@ def write_tables() -> None:
                               else fmt3(sum(rec["masked_S_mean"].values()) / 31))
     (TAB_OUT / "p2_transfer.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{2$\\times$2 迁移表（同架构 MRFN，只变训练方式；$\mathcal{S}$，3-seed 均值，自动生成）}",
+        "  \\caption{2$\\times$2 迁移表（同架构只变训练方式，$\\mathcal{S}$）}",
         "  \\label{tab:p2-transfer}",
         "  \\begin{tabular}{lcc}", "    \\toprule",
         "    训练方式$\\backslash$测试 & clean test & 31 场景均值 \\\\", "    \\midrule",
@@ -203,7 +203,7 @@ def write_tables() -> None:
                     f"{s31 - base31:+.3f} \\\\")
     (TAB_OUT / "p2_ablation.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{消融与填充基线（$\mathcal{S}$，3-seed 均值；$\\Delta$ 相对完整 MRFN 的 31 场景均值，自动生成）}",
+        "  \\caption{组件消融与填充基线（$\\mathcal{S}$，$\\Delta$ 相对完整 MRFN）}",
         "  \\label{tab:p2-ablation}",
         "  \\begin{tabular}{lrccc}", "    \\toprule",
         "    变体 & 参数量 & clean $\mathcal{S}$ & 31 场景均值 $\mathcal{S}$ & $\\Delta$ \\\\", "    \\midrule",

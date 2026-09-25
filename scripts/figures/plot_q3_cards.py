@@ -273,7 +273,7 @@ def write_tables() -> None:
     rows = [f"    {m} & {pos[m]} & {20 - pos[m]} & {dom.get(m, 0)} \\\\" for m in MODS]
     (TAB_OUT / "p3_shapley_direction.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "\\caption{模态 Shapley 方向表（预测类上带符号 $\\varphi$；$v(\\emptyset)$ 联盟级基准）}",
+        "\\caption{模态 Shapley 方向统计（预测类带符号 $\\varphi$）}",
         "  \\label{tab:p3-direction}", "  \\begin{tabular}{lccc}", "    \\toprule",
         "    模态 & $\\varphi{>}0$ & $\\varphi{<}0$ & 主导 \\\\", "    \\midrule", *rows,
         "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
@@ -284,7 +284,7 @@ def write_tables() -> None:
     n_pass = sum(r["completeness"]["pass"] for r in M2["reports"])
     (TAB_OUT / "p3_completeness.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "\\caption{Shapley 完备性（$\\sum_m \\varphi_m = v(N)-v(\\emptyset)$，逐样本）}",
+        "\\caption{Shapley 完备性检验（效率公理最大残差）}",
         "  \\label{tab:p3-completeness}", "  \\begin{tabular}{lccc}", "    \\toprule",
         "    输出头 & 最大残差 & 门槛 & 通过 \\\\", "    \\midrule",
         f"    分类 & ${sci(cls_res)}$ & $1{{\\times}}10^{{-5}}$ & {n_pass}/20 \\\\",
@@ -306,7 +306,7 @@ def write_tables() -> None:
     ]
     (TAB_OUT / "p3_ig_validation.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering\\small",
-        "\\caption{IG 验证（条件特征基线，avail 固定 $o$；与 $v(\\emptyset)$ 严格区分）}",
+        "\\caption{IG 验证结果（条件特征基线）}",
         "  \\label{tab:p3-ig-validation}",
         "  \\begin{tabular}{p{2.9cm}p{3.3cm}p{3.6cm}l}", "    \\toprule",
         "    验证项 & 实测 & 门槛/口径 & 判定 \\\\", "    \\midrule", *rows,

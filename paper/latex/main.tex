@@ -122,7 +122,7 @@
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/g1_framework.pdf}
-  \caption{全文总体技术路线：问题一建立统一时序坐标，产出位置体系、观测状态定义与位置—物理时间映射三项坐标资产；问题二在统一坐标体系上训练缺失感知鲁棒预测模型；问题三复用同一预测器完成反事实解释，并沿位置—物理时间映射将关键证据回溯至原始素材。}
+  \caption{全文总体技术路线：坐标资产、鲁棒预测与反事实解释}
   \label{fig:g1}
 \end{figure}
 
@@ -276,9 +276,7 @@
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q1/q1_unified_coordinate.pdf}
-  \caption{统一语义—时间坐标图（样本 $-$3g5yACwYnA$_\$$13，VFR）：文本轨
-  （position 域）、映射梯形带、音频波形轨与视觉关键帧轨（time 域，
-  pts\_time 落位）；两域坐标独立，不做线性拉伸。}
+  \caption{统一时序坐标图（文本位置域与物理时间域经词区间映射）}
   \label{fig:q1-unified}
 \end{figure}
 
@@ -318,8 +316,7 @@ P^{a}(w)=\frac{1}{|F(w)|}\sum_{k\in F(w)}x_k,\qquad F(w)=\{k:\ t_k\in[t_s(w),t_e
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q1/q1_semantic_grid.pdf}
-  \caption{50 步语义网格与状态掩码（样本 $-$a55Q6RWvTA$_\$$3：65 词截断为
-  39 词 $+$ 48 内容片；自冻结 pkl 自动生成）。}
+  \caption{50 位语义网格与状态标注（截断样本示例）}
   \label{fig:q1-grid}
 \end{figure}
 
@@ -376,8 +373,7 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q1/q1_acceptance_summary.pdf}
-  \caption{P1 验收三联图：对齐质量状态分布（质量标记，非管线失败）、100 条
-  观测率分布、vision 缺失原因构成（分母 = content 位置数 $N{=}2247$）。}
+  \caption{问题一验收三联图：对齐质量、观测率与缺失原因}
   \label{fig:q1-accept}
 \end{figure}
 \input{tables/q1_acceptance_summary.tex}
@@ -449,9 +445,7 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_mrfn_architecture.pdf}
-  \caption{缺失空间与 MRFN 结构图（左列：$(M,P,r,\bar l)$、$a{=}o\cdot(1{-}b)$、
-  文本编码前 [MASK] 替换；右列：七层数据流，与代码契约逐条对应；
-  输入维度为附件2 官方 74/35，区别于问题一自产 25/23）。}
+  \caption{MRFN 结构与缺失空间示意（左：缺失空间；右：七层数据流）}
   \label{fig:q2-arch}
 \end{figure}
 
@@ -467,14 +461,13 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_degradation.pdf}
-  \caption{缺失率—性能退化曲线（附件2 test，31 网格冻结协议）：MRFN 双优——
-  clean $\mathcal{S}{=}0.756$ 最高且 text@80 退化最小（0.618 vs B3 0.557）。}
+  \caption{缺失率——性能退化曲线（附件2 test，31 场景）}
   \label{fig:q2-deg}
 \end{figure}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_scenario_heatmap.pdf}
-  \caption{31 缺失场景性能退化热力图（$D_{\mathcal{S}}$，颜色越深退化越大）。}
+  \caption{31 缺失场景退化热力图（$D_{\mathcal{S}}$）}
   \label{fig:q2-heat}
 \end{figure}
 \subsection{鲁棒性评价体系与 31 场景实验}\label{subsec:q2-robust}
@@ -529,8 +522,7 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q2/q2_fj3_behavior.pdf}
-  \caption{附件3 行为分析（MRFN+ 集成，30 条，无标签不做精度声明）：joint
-  缺失率、$g_{text}$ 与 a/v 缺失、text-only 一致率、预测极性分布。}
+  \caption{附件3 行为分析（MRFN+ 集成，30 条，无标签）}
   \label{fig:q2-fj3}
 \end{figure}
 
@@ -569,10 +561,7 @@ m^{*}=\arg\max_m\,\bigl|[\varphi_m^{cls}]_{\hat y}\bigr|,
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_shapley_evidence.pdf}
-  \caption{模态贡献——证据回溯（附件4，20 条）：左为带符号 Shapley 贡献
-  $\varphi_m$ 与主导模态（text 18 / vision 2），右为 TOP-8 原词证据
-  （IG，条件特征基线）；附件4 未提供时间戳，词回溯经问题一网格完成
-  （20/20 对齐），$[t_s,t_e)$ 时间回溯在问题一坐标域内可用。}
+  \caption{模态贡献与词级证据回溯（附件4，20 条）}
   \label{fig:q3-shapley}
 \end{figure}
 
@@ -612,7 +601,7 @@ A_w=\sum_{j\in w}\mathrm{IG}_j,
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_ig_validation.pdf}
-  \caption{IG 验证：三基线排序高度一致（各对均值 $\bar\rho\ge 0.96$）；F 项诊断——音/视局部干预下 IG--LOO 强一致，文本未达门槛。}
+  \caption{IG 验证与 F 项诊断（三基线排序一致性）}
   \label{fig:q3-igval}
 \end{figure}
 
@@ -631,8 +620,7 @@ A_w=\sum_{j\in w}\mathrm{IG}_j,
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_fidelity.pdf}
-  \caption{删除/插入保真度曲线（主基线 IG$_{cls}$）：归因排序显著优于
-  随机排序（AOPC $=0.1657$，胜 19/20；$\Delta$AUC $=0.1291$，胜 20/20）。}
+  \caption{删除/插入保真度曲线（归因序与随机序对照）}
   \label{fig:q3-fid}
 \end{figure}
 \input{tables/p3_fidelity.tex}
@@ -659,8 +647,7 @@ A_w=\sum_{j\in w}\mathrm{IG}_j,
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_explain_cards.pdf}
-  \caption{解释卡三例（附件4，MRFN+ 3-seed 集成）：左列预测与模态贡献，
-  右列 TOP-5 原词证据（词聚合 = 问题一 $\alpha$ 映射 + 质量守恒求和）。}
+  \caption{解释卡三例（附件4，MRFN+ 集成）}
   \label{fig:q3-cards}
 \end{figure}
 
