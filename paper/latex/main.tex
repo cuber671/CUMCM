@@ -32,6 +32,11 @@
 \keywords{多模态情感预测；时序对齐；模态局部缺失；鲁棒融合；可解释性}
 \end{abstract}
 
+%% ============ 目录（独立成页） ============
+\clearpage
+\maketoc
+\clearpage
+
 %% ============ 正文（结构冻结于 paper/outline.md v5.3） ============
 \clearpage
 \section{问题重述}
@@ -404,7 +409,7 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
     \centering
     \includegraphics[width=\textwidth]{figures/q2/q2_scenario_heatmap.pdf}
   \end{minipage}
-  \caption{缺失场景实验结果（附件2 test，31 场景）：(a) 缺失率——性能退化曲线；(b) 退化热力图（$D_{\mathcal{S}}$）}
+  \caption{缺失场景实验结果：(a) 退化曲线；(b) $D_{\mathcal{S}}$ 热力图}
   \label{fig:q2-deg-heat}
 \end{figure}
 \subsection{鲁棒性评价与实验}\label{subsec:q2-robust}
@@ -434,7 +439,7 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.5\textwidth]{figures/q2/q2_gate_curve.pdf}
-  \caption{门控信任随缺失率的响应（MRFN，valid，3-seed 均值）}
+  \caption{门控信任随缺失率的响应（valid，3-seed 均值）}
   \label{fig:q2-gate}
 \end{figure}逐样本的门控——留一模态贡献秩相关\textbf{在各模态上均为正}（文本 0.198、语音 0.033、视觉 0.077），其中语音、视觉强度弱。按判据（各模态响应方向一致且秩相关为正）H5 判定成立，但样本级关联强度弱；该结果与第六章门控——贡献一致性的分析互补。
 \input{tables/p2_transfer.tex}
@@ -830,9 +835,11 @@ joint/av/rate40/random                    # 联合缺失（1 条）
     \bottomrule
   \end{tabular}
 \end{table}
+以发生 rollback、多子词与对齐失败的样本 $-$9y-fZ3swSY\_4 为例，图~\ref{fig:replay-9y}~给出其自动回放。
 \begin{figure}[htbp]\centering
   \includegraphics[width=0.8\textwidth]{figures/q1/replay_9yfZ3swSY_4.pdf}
-  \caption{自动回放：$-$9y-fZ3swSY\_4（rollback、多子词、对齐失败）}
+  \caption{自动回放示例}
+  \label{fig:replay-9y}
 \end{figure}
 其余八张回放图随交付包交付。备选图（问题三的 q3\_del\_ins、q3\_gphi、
 q3\_att4 与问题一过程图）未编入正文与附录，原因与文件名清单随交付包说明。
