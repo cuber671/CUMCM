@@ -45,7 +45,7 @@ CURVES = pd.read_csv(RUNS / "m4/curves.csv", encoding="utf-8-sig")
 MODS = ("text", "audio", "vision")
 CLS_NAME = {0: "负", 1: "中", 2: "正"}
 MOD_COLOR = {"text": "#0072B2", "audio": "#E69F00", "vision": "#009E73"}
-CARD_SAMPLES = ("09", "14", "13")  # 强文本主导 / 唯一 vision 主导 / vision 全缺哑玩家
+CARD_SAMPLES = ("09", "14", "13")  # 强文本主导 / 代表性 vision 主导 / vision 全缺哑玩家
 
 
 def configure_style() -> None:
@@ -352,7 +352,7 @@ def main() -> int:
     a = ck4["A_deletion_superiority"]["detail"]
     print("caption 素材：")
     print(f"  A AOPC={a['mean_aopc']:.4f} 胜 {a['wins']}/{a['n']}；F text IG–LOO 未通过（诊断闭环）")
-    print(f"  解释卡样本：{'/'.join(CARD_SAMPLES)}（强 text 主导 / 唯一 vision 主导 / vision 全缺哑玩家）")
+    print(f"  解释卡样本：{'/'.join(CARD_SAMPLES)}（强 text 主导 / 代表性 vision 主导 / vision 全缺哑玩家）")
     print("  F1/F2 图注要点：左图按 phi_text 升序排列（vision 主导为 #14/#19，18+0+2=20 对账）；")
     print("  TOP-8 中 not 出现两次 = word_id 3/11 两个不同词位实例（非去重错误）；")
     print("  功能词贡献高属条件特征基线下的正常现象，正文预说明。")
