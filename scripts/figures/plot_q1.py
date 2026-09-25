@@ -402,7 +402,7 @@ def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SA
                          vmin=0, vmax=1, extent=(-0.5, 49.5, 1.5, -0.5))
     ax_aq.set_yticks([0, 1])
     ax_aq.set_yticklabels(["alpha", "quality_audio"], fontsize=6.8)
-    ax_aq.set_title("连续状态量（quality_video 与 quality_audio 逐位相同）", loc="left", fontsize=8.4, pad=3)
+    ax_aq.set_title("连续状态量（本样本中 quality_video 与 quality_audio 逐位相同）", loc="left", fontsize=8.4, pad=3)
     ax_aq.set_xticks(np.arange(51) - 0.5, minor=True)
     ax_aq.set_yticks(np.arange(3) - 0.5, minor=True)
     ax_aq.grid(False)
