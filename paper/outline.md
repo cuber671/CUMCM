@@ -84,7 +84,13 @@ v4.1 变更（同日，用户五处调整 + 边界锁定）：
 | 参考文献 | ☐ | BERT/Shapley/Sundararajan IG/CMU-MOSEI/wav2vec2/ERASER/温度校准 | reference.bib |
 | 附录 | ☐ | A 环境与复现（工具版本、清单与指纹）B 关键代码 C 附件3/4 CSV 样例 D 掩码库说明 E 回放图与备选图 | replay×9；q3_del_ins/gphi/att4 备选 |
 
-## 图表资产清单（正文正式 = 12 图 10 表；编号 LaTeX 顺排）
+## 图表资产清单（正文正式 = 12 图 12 表；编号 LaTeX 顺排）
+
+表格规范（2026-09-25 锁定）：正文与附录正式数据表统一三线表——无竖线、组线用
+addlinespace；表题在上且只述"表中是什么"，口径/方法/主次说明移表下注；正文先引
+后表、表后必解读；Acc 与 macro-F1 统一百分数两位小数，𝒮/D_𝒮/MAE 等统一三位小数
+（精度核验类保留必要有效数字）；"—"仅指不适用；表内不写结论性文字；一表一目的。
+正文 12 表 = 一×1（附件总览）+ 三×2（假设登记/符号）+ 问题一×1 + 问题二×4 + 问题三×4。
 
 - **一**：表 attachments（附件总览，1.5）；**二**：图 g1_framework=图 1；**三**：表 symbols
 - **四**：图 q1_unified_coordinate / q1_semantic_grid / q1_acceptance_summary + 表 q1_acceptance_summary
