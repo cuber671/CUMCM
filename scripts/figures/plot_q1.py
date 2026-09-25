@@ -481,11 +481,11 @@ def write_acceptance_table(run_root: Path, output_dir: Path) -> None:
     tex = "\n".join([
         "\\begin{table}[htbp]",
         "  \\centering\\small",
-        "  \\caption{P1 验收汇总：精确数字（自动生成，勿手改）}",
+        "  \\caption{问题一验收结果汇总}",
         "  \\label{tab:q1-acceptance}",
         "  \\begin{tabular}{p{2.3cm}p{4.6cm}p{3.1cm}l}",
         "    \\toprule",
-        "    验收项 & P1 实测 & 参照基准 & 判定 \\\\",
+        "    验收项 & 实测值 & 参照基准 & 判定 \\\\",
         "    \\midrule",
         f"    覆盖完整性 & {rep['coverage']['label_rows']}/100 一一对应，无缺失/重复/多余 & 附件1 label-100 & 通过 \\\\",
         f"    Schema 一致性 & 违例 {len(rep['schema_violations'])}（shape/dtype/mask 分区/SEP 位） & p1.v2 契约 & 通过 \\\\",
@@ -495,6 +495,9 @@ def write_acceptance_table(run_root: Path, output_dir: Path) -> None:
         f"    对齐质量状态 & ok/review/rollback = {ok}/{rv}/{rb} & — & 质量标记，非管线失败 \\\\",
         "    \\bottomrule",
         "  \\end{tabular}",
+        "  \\par \\smallskip",
+        "  {\\small 注：非零率保留 5 位小数以逐位核对基准；bitwise 表示逐位相等；"
+        "ok/review/rollback 为质量标记（非管线失败）。}",
         "\\end{table}",
     ])
     output_dir.mkdir(parents=True, exist_ok=True)

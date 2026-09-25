@@ -1,6 +1,6 @@
 \begin{table}[htbp]
   \centering
-  \caption{模型阶梯表（附件2 test，clean 评估 + 31 场景均值退化；3-seed 均值，自动生成）}
+  \caption{模型阶梯评估结果（附件2 test；3 种子均值）}
   \label{tab:p2-ladder}
   \begin{tabular}{lrrrrrrr}
     \toprule
@@ -13,4 +13,6 @@
     MRFN & 416,839 & 0.667 & 0.625 & 0.634 & 0.675 & 0.756 & 0.028 \\
     \bottomrule
   \end{tabular}
+  \par \smallskip
+  {\small 注：Acc 与 macro-F1 为百分数；$\mathcal{S}$ 为综合效用分，$\overline{D_{\mathcal{S}}}$ 为 31 场景等权平均退化（先场景内 8 实例均值、后 31 场景等权）。}
 \end{table}

@@ -153,11 +153,15 @@ def write_tables() -> None:
                     f"{fmt3(rec['mean_D_S'])} \\\\")
     (TAB_OUT / "p2_ladder.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{模型阶梯表（附件2 test，clean 评估 + 31 场景均值退化；3-seed 均值，自动生成）}",
+        "  \\caption{模型阶梯评估结果（附件2 test；3 种子均值）}",
         "  \\label{tab:p2-ladder}",
         "  \\begin{tabular}{lrrrrrrr}", "    \\toprule",
         "    模型 & 参数量 & Acc & macro-F1 & MAE & Pearson & $\mathcal{S}$ & $\\overline{D_{\\mathcal{S}}}$ \\\\",
-        "    \\midrule", *rows, "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
+        "    \\midrule", *rows, "    \\bottomrule", "  \\end{tabular}",
+        "  \\par \\smallskip",
+        "  {\\small 注：Acc 与 macro-F1 为百分数；$\\mathcal{S}$ 为综合效用分，"
+        "$\\overline{D_{\\mathcal{S}}}$ 为 31 场景等权平均退化（先场景内 8 实例均值、后 31 场景等权）。}",
+        "\\end{table}",
     ]), encoding="utf-8")
 
     # ---- P2-T2 2×2 迁移表（m5 变体：MRFN_clean vs MRFN 主模型）----
@@ -213,8 +217,7 @@ def write_tables() -> None:
     def r(x): return f"{100 * x:.2f}\\%"
     (TAB_OUT / "p2_final_test.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering",
-        "  \\caption{最终 test 结果（附件2 test，clean 口径；单模型均值与集成属不同口径不可直接比较；"
-        "MRFN+ 未做 31 场景评估、不构造鲁棒性曲线。自动生成）}",
+        "\\caption{最终测试集结果（附件2 test，clean 口径）}",
         "  \\label{tab:p2-final}",
         "  \\begin{tabular}{llrrrr}", "    \\toprule",
         "    模型 & 评估批次 & Acc & macro-F1 & MAE & $\mathcal{S}$ \\\\", "    \\midrule",
@@ -224,7 +227,10 @@ def write_tables() -> None:
         f"{r(single['macro_f1']['mean'])} & {fmt3(single['mae']['mean'])} & {fmt3(single['S']['mean'])} \\\\",
         f"    MRFN+（3-seed 集成） & 预注册追加 test & {r(ens['acc'])} & {r(ens['macro_f1'])} & "
         f"{fmt3(ens['mae'])} & {fmt3(ens['S'])} \\\\",
-        "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
+        "    \\bottomrule", "  \\end{tabular}",
+        "  \\par \\smallskip",
+        "  {\\small 注：MRFN 为主表冻结正式模型；MRFN+ 为预注册追加评估的补充变体，未做 31 场景评估、不构造鲁棒性曲线；单模型均值与三种子集成为不同口径，不可直接比较。}",
+        "\\end{table}",
     ]), encoding="utf-8")
     print("表: p2_ladder / p2_transfer / p2_ablation / p2_final_test →", TAB_OUT)
 

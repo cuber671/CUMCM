@@ -1,19 +1,19 @@
 \begin{table}[htbp]
   \centering\small
-\caption{M4 保真度验收（A--E 通过，F 未通过并完成结构性诊断）}
+\caption{解释保真度六项检验结果（判定与预注册门槛）}
   \label{tab:p3-fidelity}
   \begin{tabular}{p{1.8cm}p{4.3cm}p{3.2cm}l}
     \toprule
     门槛 & 实测 & 预注册规则 & 判定 \\
     \midrule
-    A 删除 & 0.1657（胜 19/20） & 均值$>$0 且 $\ge$15/20 & 通过 \\
-    B 插入 & 0.1291（胜 20/20） & 均值$>$0 且 $\ge$15/20 & 通过 \\
+    A 删除 & 0.166（胜 19/20） & 均值$>$0 且 $\ge$15/20 & 通过 \\
+    B 插入 & 0.129（胜 20/20） & 均值$>$0 且 $\ge$15/20 & 通过 \\
     C 全面/充分 & compr=0.306，|suff|=0.098 & compr$>$0，$|$suff$|<$compr & 通过 \\
     D 随机化坍缩 & median $\rho$ max 0.267 & $\le 0.3$ & 通过 \\
     E 稳定性（text） & 0.997 & $\ge 0.6$ & 通过 \\
     F text IG--LOO & 0.170 & $\ge 0.3$ & \textbf{未通过} \\
-    \midrule
-    \multicolumn{4}{p{\dimexpr\linewidth-2\tabcolsep}}{\small F 诊断：a/v 局部干预 $|\rho|$=0.74/0.73 强一致；text [MASK] 重编码为非局部干预（BERT 从上下文推断被掩 token），与嵌入层 IG 属不同反事实，故 IG--LOO 全秩/头部一致性均低。} \\
     \bottomrule
   \end{tabular}
+  \par \smallskip
+  {\small 注：F 项结构性诊断——a/v 局部干预 $|\rho|$=0.74/0.73 强一致；text [MASK] 重编码为非局部干预，与嵌入层 IG 属不同反事实，故 IG--LOO 一致性低（详见正文 6.4 节）。}
 \end{table}

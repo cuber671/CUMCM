@@ -287,8 +287,8 @@ def write_tables() -> None:
         "\\caption{Shapley 完备性（$\\sum_m \\varphi_m = v(N)-v(\\emptyset)$，逐样本）}",
         "  \\label{tab:p3-completeness}", "  \\begin{tabular}{lccc}", "    \\toprule",
         "    输出头 & 最大残差 & 门槛 & 通过 \\\\", "    \\midrule",
-        f"    cls & {cls_res:.1e} & $1{{\\times}}10^{{-5}}$ & {n_pass}/20 \\\\",
-        f"    reg & {reg_res:.1e} & $1{{\\times}}10^{{-5}}$ & {n_pass}/20 \\\\",
+        f"    分类 & ${sci(cls_res)}$ & $1{{\\times}}10^{{-5}}$ & {n_pass}/20 \\\\",
+        f"    强度 & ${sci(reg_res)}$ & $1{{\\times}}10^{{-5}}$ & {n_pass}/20 \\\\",
         "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
     ]), encoding="utf-8")
 
@@ -298,9 +298,9 @@ def write_tables() -> None:
     e_det = ck4["E_stability_text"]["detail"]
     rows = [
         f"    积分误差（64 步中点） & {integ['n_pass']}/{integ['n_checks']} & max rel {integ['max_rel']*100:.2f}\\% & 通过 \\\\",
-        f"    阻断位泄漏 & max $|IG|$={ck3['zero_ig_outside_evidence']['detail']['max_abs_ig_on_blocked_positions']:.1e} & 3基线$\\times$2输出$\\times$3模态 & 通过 \\\\",
-        f"    \\#13 哑玩家 & $\\max|IG_v|$={ck3['ig_zero_vision_13']['detail']['max_abs_ig_vision']:.1e} & $\\varphi_v\\equiv 0$ & 通过 \\\\",
-        f"    P1 网格对齐 & {ck3['p1_grid_alignment']['detail']['aligned']}/20 & 截断词 {ck3['p1_grid_alignment']['detail']['uncovered_words_total']} 个 uncovered & 通过 \\\\",
+        f"    阻断位泄漏 & max $|IG|$={sci(ck3['zero_ig_outside_evidence']['detail']['max_abs_ig_on_blocked_positions'])}（逐位精确） & 3基线$\\times$2输出$\\times$3模态 & 通过 \\\\",
+        f"    \\#13 哑玩家 & $\\max|IG_v|$={sci(ck3['ig_zero_vision_13']['detail']['max_abs_ig_vision'])}（逐位精确） & $\\varphi_v\\equiv 0$ & 通过 \\\\",
+        f"    问题一网格映射 & {ck3['p1_grid_alignment']['detail']['aligned']}/20 & 截断词 {ck3['p1_grid_alignment']['detail']['uncovered_words_total']} 个未覆盖 & 通过 \\\\",
         f"    基线排序敏感性 & $\\bar\\rho_{{min}}$={sens_min:.3f} & $\\ge 0.96$ & 通过 \\\\",
         f"    稳定性 t/a/v & {e_det['text_mean']:.3f}/{e_det['av_report']['audio']:.3f}/{e_det['av_report']['vision']:.3f} & text $\\ge 0.6$ & 通过 \\\\",
     ]
@@ -318,27 +318,35 @@ def write_tables() -> None:
     for name, cn in (("A_deletion_superiority", "A 删除"), ("B_insertion_superiority", "B 插入")):
         d = ck4[name]["detail"]
         key = "mean_aopc" if name.startswith("A") else "mean_dauc"
-        rows.append(f"    {cn} & {d[key]:.4f}（胜 {d['wins']}/{d.get('n', 20)}） & 均值$>$0 且 $\\ge$15/20 & 通过 \\\\")
+        rows.append(f"    {cn} & {d[key]:.3f}（胜 {d['wins']}/{d.get('n', 20)}） & 均值$>$0 且 $\\ge$15/20 & 通过 \\\\")
     c = ck4["C_compr_suff"]["detail"]
     rows.append(f"    C 全面/充分 & compr={c['mean_compr_at_20']:.3f}，|suff|={c['mean_abs_suff_at_20']:.3f} & compr$>$0，$|$suff$|<$compr & 通过 \\\\")
     dmax = max(abs(v) for v in M4["randomization"]["median_rho"].values())
     rows.append(f"    D 随机化坍缩 & median $\\rho$ max {dmax:.3f} & $\\le 0.3$ & 通过 \\\\")
     rows.append(f"    E 稳定性（text） & {ck4['E_stability_text']['detail']['text_mean']:.3f} & $\\ge 0.6$ & 通过 \\\\")
     rows.append(f"    F text IG--LOO & {ck4['F_ig_loo_text']['detail']['text_mean']:.3f} & $\\ge 0.3$ & \\textbf{{未通过}} \\\\")
-    rows.append("    \\midrule")
-    rows.append(f"    \\multicolumn{{4}}{{p{{\\dimexpr\\linewidth-2\\tabcolsep}}}}{{\\small "
-                f"F 诊断：a/v 局部干预 $|\\rho|$={sm['audio']['rho_abs']:.2f}/{sm['vision']['rho_abs']:.2f} 强一致；"
-                f"text [MASK] 重编码为非局部干预（BERT 从上下文推断被掩 token），与嵌入层 IG 属不同反事实，"
-                f"故 IG--LOO 全秩/头部一致性均低。}} \\\\")
+    note = (f"注：F 项结构性诊断——a/v 局部干预 $|\\rho|$={sm['audio']['rho_abs']:.2f}/"
+            f"{sm['vision']['rho_abs']:.2f} 强一致；text [MASK] 重编码为非局部干预，与嵌入层 IG 属不同"
+            f"反事实，故 IG--LOO 一致性低（详见正文 6.4 节）。")
     (TAB_OUT / "p3_fidelity.tex").write_text("\n".join([
         "\\begin{table}[htbp]", "  \\centering\\small",
-        "\\caption{M4 保真度验收（A--E 通过，F 未通过并完成结构性诊断）}",
+        "\\caption{解释保真度六项检验结果（判定与预注册门槛）}",
         "  \\label{tab:p3-fidelity}",
         "  \\begin{tabular}{p{1.8cm}p{4.3cm}p{3.2cm}l}", "    \\toprule",
         "    门槛 & 实测 & 预注册规则 & 判定 \\\\", "    \\midrule", *rows,
-        "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
+        "    \\bottomrule", "  \\end{tabular}",
+        "  \\par \\smallskip", "  {\\small " + note + "}", "\\end{table}",
     ]), encoding="utf-8")
     print("表: p3_shapley_direction / p3_completeness / p3_ig_validation / p3_fidelity →", TAB_OUT)
+
+
+
+def sci(x: float) -> str:
+    """科学计数 LaTeX 化；精确 0 返回 '0'。"""
+    if x == 0:
+        return "0"
+    m, e = f"{x:.1e}".split("e")
+    return f"{m}\\times10^{{{int(e)}}}"
 
 
 def main() -> int:
