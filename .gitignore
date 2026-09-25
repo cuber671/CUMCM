@@ -20,4 +20,6 @@ cache/
 runs/**
 !runs/**/
 !runs/**/checkpoint.pt
+!runs/**/bert_delta_layer11.pt
+!runs/**/WEIGHTS.md
 runs/**/bert_checkpoint.pt
