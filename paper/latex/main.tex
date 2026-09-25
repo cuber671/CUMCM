@@ -534,7 +534,23 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \textbf{四项性质目标。}完备性（$\sum_m\varphi_m=v(N)-v(\varnothing)$ 精确成立，\ref{subsec:q3-shapley}~节）、保真性（按归因序删除的预测偏移显著大于随机序，\ref{subsec:q3-fid}~节）、一致性（门控信任与实际贡献趋势一致，\ref{subsec:q3-gphi}~节）、可回溯性（每个归因位可映射到证据与物理时间，\ref{subsec:q3-ig}、\ref{subsec:q3-att4}~节）。
 
 \subsection{模态级精确 Shapley 模型}\label{subsec:q3-shapley}
-%（6.2 正文待审阅定稿后接入；图 q3_shapley_evidence 保留于此）
+本节的数学任务是：将模态作用程度形式化为合作博弈的精确 Shapley 值，构造与训练算子可对应的联盟值，并以公理校验与分布统计检验其正确性。
+
+\textbf{联盟值的构造。}记模态全集 $N=\{\text{文本},\text{语音},\text{视觉}\}$，共 8 个联盟。对联盟 $S\subseteq N$，联盟值 $v(S)$ 通过对补集模态执行合成缺失得到：$S$ 内模态保持自然观测，$S$ 外模态的内容位全部抹除——文本在编码前将相应子词替换为 [MASK]（3.1 节规则），语音/视觉置零；$v(\varnothing)$ 为三模态全部未观测的状态，此时输入非全零——由 5.2 节机制一，位置嵌入与缺失嵌入仍构成输入。构造规则与 \ref{subsec:q2-missing}~节合成缺失算子一致。分类与强度双输出分别取联盟值 $v^{cls}(S)\in\Delta^{3}$（预测概率向量）与 $v^{r}(S)\in[-3,3]$，均为三种子均值口径。
+
+\textbf{精确 Shapley 值。}三模态的全部联盟仅 8 个，可精确枚举：
+\begin{equation}
+\varphi_m=\sum_{S\subseteq N\setminus\{m\}}\frac{|S|!\,(3-|S|-1)!}{3!}\left[v(S\cup\{m\})-v(S)\right],
+\end{equation}
+权重以精确分数 $(1/3,\ 1/6,\ 1/3)$ 参与计算，避免浮点权重误差；分类输出逐类计算带符号 $\varphi_m^{cls}\in\mathbb{R}^{3}$，强度输出为标量 $\varphi_m^{r}$。主要参考模态取
+\begin{equation}
+m^{*}=\arg\max_m\,\bigl|[\varphi_m^{cls}]_{\hat y}\bigr|,
+\end{equation}
+其中 $[\cdot]_{\hat y}$ 为预测类 $\hat y$ 对应的分量。
+
+\textbf{公理校验（表~\ref{tab:p3-completeness}）。}效率公理精确成立：分类逐类残差 $\le 3.0\times10^{-8}$、强度残差 $\le 4.4\times10^{-16}$（门槛 $10^{-5}$），20/20 通过。哑玩家公理获得一个真实数据实证：样本 \#13 的视觉模态\textbf{整模态自然缺失}（数据事实：$o_v\equiv 0$），而可用状态 $a_j^{v}=o_j^{v}(1-b_j^{v})$ 在 $o\equiv 0$ 时对任意合成缺失取 $b$ 均恒为零，故无论 $v\in S$ 与否，该模态的输入嵌入（5.2 节式（3）退化为 $p_j+e^{v}$）、证据可用性 $m_j^{v}=\chi_j a_j^{v}\equiv 0$ 与覆盖率 $c_v=0$ 全部逐位相同——即 $v(S\cup\{v\})=v(S)$ 对任意 $S$ 成立；实测 $\varphi_v^{cls}\equiv\mathbf{0}$、$\varphi_v^{r}=0$，架构级阻断与构造规则共同使该模态成为严格哑玩家，解释自动标注"无视觉证据"。此外，附件4 中有 5 条样本与附件2 测试集样本完全重合（三模态特征逐位相同），其真实标签可由附件2 对应条目获得；以此作交叉核验，预测与标签 5/5 一致。由于标签来自附件2 而非附件4，该核验仅作内部一致性自检、不参与任何选择决策，也不构成对附件4 的精度声明。
+
+\textbf{贡献分布（表~\ref{tab:p3-direction}、图~\ref{fig:q3-shapley}）。}20 条样本的主导模态分布为文本 18、视觉 2、语音 0，与问题二"文本主导"的实验结论一致；高置信样本（校准置信度 $>0.97$）呈大 $\varphi_{\text{text}}$（预测类 0.55--0.68）配微小的 $\varphi_a,\varphi_v$。方向性信息同样可读：如样本 \#04（预测负类）的 $\varphi_{\text{text}}=(+0.36,-0.08,-0.28)$，文本同时支持负类并抑制正类——带符号贡献在解释卡中直呈。从图~\ref{fig:q3-shapley}~可以看出：左侧带符号贡献堆叠中文本占绝对主体、\#13 的视觉贡献恒零（哑玩家实证）；右侧 TOP-8 原词证据对应高贡献样本，词级证据回溯经问题一网格完成（20 条样本全部建立位置——原词映射）。
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/q3/q3_shapley_evidence.pdf}
@@ -546,7 +562,6 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 \end{figure}
 
 
-完备性与方向统计见表~\ref{tab:p3-direction}、表~\ref{tab:p3-completeness}。
 \input{tables/p3_shapley_direction.tex}
 \input{tables/p3_completeness.tex}
 
