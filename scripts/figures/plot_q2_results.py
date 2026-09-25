@@ -123,11 +123,11 @@ def plot_scenario_heatmap() -> None:
         ax.axvline(x, color="white", lw=1.6)
     for txt, x in [("MCAR 单模态", 6.5), ("双模态", 16), ("Block（40%）", 23.5), ("Joint", 30)]:
         ax.text(x, -0.9, txt, ha="center", va="bottom", fontsize=6.2, color="#374151")
-    ax.set_title("31 缺失场景下的性能退化 D_S（3-seed 均值；颜色越深退化越大）",
+    ax.set_title("31 缺失场景下的性能退化 $D_{\\mathcal{S}}$（3-seed 均值；颜色越深退化越大）",
                  loc="left", fontsize=8.6, pad=14)
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
     cbar.ax.tick_params(labelsize=6)
-    cbar.set_label("D_S", fontsize=6.5)
+    cbar.set_label("$D_{\\mathcal{S}}$", fontsize=6.5)
     FIG_OUT.mkdir(parents=True, exist_ok=True)
     fig.tight_layout(pad=0.7)
     fig.savefig(FIG_OUT / "q2_scenario_heatmap.pdf")
@@ -156,7 +156,7 @@ def write_tables() -> None:
         "  \\caption{模型阶梯表（附件2 test，clean 评估 + 31 场景均值退化；3-seed 均值，自动生成）}",
         "  \\label{tab:p2-ladder}",
         "  \\begin{tabular}{lrrrrrrr}", "    \\toprule",
-        "    模型 & 参数量 & Acc & macro-F1 & MAE & Pearson & $\mathcal{S}$ & $\\overline{D_S}$ \\\\",
+        "    模型 & 参数量 & Acc & macro-F1 & MAE & Pearson & $\mathcal{S}$ & $\\overline{D_{\\mathcal{S}}}$ \\\\",
         "    \\midrule", *rows, "    \\bottomrule", "  \\end{tabular}", "\\end{table}",
     ]), encoding="utf-8")
 
