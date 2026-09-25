@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+  \centering\small
+\caption{IG 验证（条件特征基线，avail 固定 $o$；与 $v(\emptyset)$ 严格区分）}
+  \label{tab:p3-ig-validation}
+  \begin{tabular}{p{2.9cm}p{3.3cm}p{3.6cm}l}
+    \toprule
+    验证项 & 实测 & 门槛/口径 & 判定 \\
+    \midrule
+    积分误差（64 步中点） & 40/40 & max rel 0.62\% & 通过 \\
+    阻断位泄漏 & max $|IG|$=0.0e+00 & 3基线$\times$2输出$\times$3模态 & 通过 \\
+    \#13 哑玩家 & $\max|IG_v|$=0.0e+00 & $\varphi_v\equiv 0$ & 通过 \\
+    P1 网格对齐 & 20/20 & 截断词 22 个 uncovered & 通过 \\
+    基线排序敏感性 & $\bar\rho_{min}$=0.961 & $\ge 0.96$ & 通过 \\
+    稳定性 t/a/v & 0.997/0.995/0.984 & text $\ge 0.6$ & 通过 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

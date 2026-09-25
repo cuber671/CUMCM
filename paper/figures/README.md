@@ -1,5 +1,12 @@
 论文图源目录。
 
+P3 图表（scripts/figures/plot_q3_cards.py，本会话版本，只读 runs/p3/{m2,m3,m4} 冻结产物）：
+- q3_shapley_evidence（F1/F2 合并：带符号 φ+主导模态◆+TOP-8 词证据）/ q3_fidelity（F3 曲线，AOPC 0.1657 胜 19/20、ΔAUC 0.1291 胜 20/20）/ q3_ig_validation（F4：三基线 ρ̄≥0.96 + F 诊断 a/v 强一致 text 未达）/ q3_explain_cards（F6：#09/#14/#13，无精度声明）→ paper/latex/figures/q3/；
+- 表 p3_shapley_direction / p3_completeness / p3_ig_validation / p3_fidelity → paper/latex/tables/（xelatex 0 Overfull）；
+- 口径：40/40、max_rel 0.62%（64 步中点，6fa6c56）；A–E 通过、F text IG–LOO 0.1701<0.3 未通过+诊断行；A 胜数 19/20；v(∅) 与条件特征基线分开命名；附件4 无时间戳（词回溯=P1 网格，[t_s,t_e) 仅 P1 域内）；
+- 图注要点（脚本 stdout）：φ 图按 phi_text 升序、vision 主导 #14/#19（18+0+2=20）；TOP-k 中同名词=不同 word_id 实例（#09 not×2 = id 3/11，#13 a×2 = id 5/16）；#13 哑玩家 φ_v≡0。
+- **并行会话另有 scripts/figures/plot_q3_results.py**（产出 q3_del_ins/q3_gphi/q3_att4 + p3_shapley/p3_gphi/p3_att4，依赖 m5/m6 产物；截至本提交 tab_shapley 有 `max()` 对 float 的 bug 未跑通）。两脚本产物名不重叠，仅 p3_fidelity.tex 同名同义（本仓库版本含 F 诊断行，已验证）；q3_del_ins 与 q3_fidelity 内容重复（后者含胜数标注），正文二选一。
+
 结构图（scripts/figures/plot_diagrams.py，与 src/p2/models.py 契约逐条对应）：
 - G1 总框架 g1_framework.{pdf,png}：P1→P2→P3 三列 + P1 映射表旁路到 P3；
 - P2-F1 q2_mrfn_architecture.{pdf,png}：左列缺失空间 (M,P,R,L)/a=o·(1−b)/text [MASK] 前置，右列 MRFN 七层数据流（§6.1 嵌入公式→BiGRU+6 方向注意力→池化/覆盖率→门控→双头）；
