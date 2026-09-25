@@ -8,7 +8,7 @@ P3 图表（scripts/figures/plot_q3_cards.py，本会话版本，只读 runs/p3/
 - **并行会话另有 scripts/figures/plot_q3_results.py**（产出 q3_del_ins/q3_gphi/q3_att4 + p3_shapley/p3_gphi/p3_att4，依赖 m5/m6 产物；截至本提交 tab_shapley 有 `max()` 对 float 的 bug 未跑通）。两脚本产物名不重叠，仅 p3_fidelity.tex 同名同义（本仓库版本含 F 诊断行，已验证）；q3_del_ins 与 q3_fidelity 内容重复（后者含胜数标注），正文二选一。
 
 结构图（scripts/figures/plot_diagrams.py，与 src/p2/models.py 契约逐条对应）：
-- G1 总框架 g1_framework.{pdf,png}：P1→P2→P3 三列 + P1 映射表旁路到 P3；
+- G1 总框架 g1_framework.{pdf,png}：三泳道各五节点（输入→核心处理→输出）——P1 提取→CTC 对齐→区间映射→坐标资产；P2 = MRFN 三机制（缺失状态编码/可用性约束跨模态注意力/可靠性门控融合）→双头；P3 冻结预测器→Shapley+IG 归因→保真度验证→证据回溯；仅一级方法节点（工具/参数级细节不进图）；三条跨问题耦合边（坐标接口、模型+门控、P1 映射旁路）保留；
 - P2-F1 q2_mrfn_architecture.{pdf,png}：左列缺失空间 (M,P,R,L)/a=o·(1−b)/text [MASK] 前置，右列 MRFN 七层数据流（§6.1 嵌入公式→BiGRU+6 方向注意力→池化/覆盖率→门控→双头）；
 - 结构图公式一律用 mathtext（$...$），普通文本里禁止字面 h̃/ᵢ 等 combining 字符（Noto 缺字形）；结构图审计只查文字入盒/重叠，箭头触盒边是设计不算穿盒。
 

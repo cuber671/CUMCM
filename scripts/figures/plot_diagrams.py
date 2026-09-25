@@ -73,44 +73,66 @@ def lane_title(ax, x, y, text):
 
 
 def plot_g1() -> None:
-    fig, ax = plt.subplots(figsize=(6.9, 3.6))
+    """G1 总体框架：三泳道 × 五节点（输入→核心处理→输出），一级方法节点。
+
+    节点命名与 main.tex §2"各问技术路线"定稿文字逐条对应：
+    P1 提取→CTC 对齐→区间映射→坐标资产；P2 = MRFN 三机制（缺失状态编码/
+    可用性约束跨模态注意力/可靠性门控融合）→双头；P3 预测→归因→验证→回溯。
+    工具级/参数级细节（BERT/GRU/维度/联盟数）不进本图。
+    """
+    fig, ax = plt.subplots(figsize=(6.9, 4.75))
     ax.set_xlim(0, 14.4)
-    ax.set_ylim(0, 7.4)
+    ax.set_ylim(0, 9.9)
     ax.axis("off")
 
-    lane_title(ax, 2.3, 7.0, "P1 统一语义—时间坐标系")
-    lane_title(ax, 7.2, 7.0, "P2 缺失鲁棒预测")
-    lane_title(ax, 12.1, 7.0, "P3 反事实解释")
+    lane_title(ax, 2.3, 9.45, "P1 统一语义—时间坐标系")
+    lane_title(ax, 7.2, 9.45, "P2 缺失鲁棒预测")
+    lane_title(ax, 12.1, 9.45, "P3 反事实解释")
 
-    box(ax, 0.3, 5.3, 4.0, 1.2, "附件1 原始多模态样本\n视频 / 音频 / 转写（100 条）", C_IO)
-    box(ax, 0.3, 3.5, 4.0, 1.2, "原词—时间锚\nforced alignment，[t_s, t_e)", C_OP)
-    box(ax, 0.3, 1.5, 4.0, 1.6,
-        "P1 统一 50 步表示\ntext 768 / audio 25 / vision 23\nmask + α + quality + 映射表", C_P1)
+    # 每泳道五节点：输入(y8.05) → 处理1(6.55) → 处理2(5.05) → 处理3(3.55) → 输出(1.95)
+    LANE_X = (0.3, 5.2, 10.1)
+    Y1, Y2, Y3, Y4, Y5 = 8.05, 6.55, 5.05, 3.55, 1.95
+    H1, H, H5 = 1.15, 1.1, 1.25
 
-    box(ax, 5.2, 5.3, 4.0, 1.2, "缺失空间 (M, P, R, L)\n31 场景网格 + 附件3（无标签）", C_IO)
-    box(ax, 5.2, 3.5, 4.0, 1.2, "MRFN\n缺失状态编码/掩码注意力/门控", C_P2)
-    box(ax, 5.2, 1.5, 4.0, 1.6, "双头：极性 + 强度\nMRFN+\n（BFT-lite，预注册追加）", C_P2, fs=7.0)
+    # ---- P1：数据 → 提取 → 对齐 → 映射 → 坐标资产 ----
+    x = LANE_X[0]
+    box(ax, x, Y1, 4.0, H1, "附件1 原始多模态样本\n视频 / 音频 / 转写文本（100 条）", C_IO)
+    box(ax, x, Y2, 4.0, H, "多模态特征提取\n文本子词化 · 音视逐帧特征", C_OP)
+    box(ax, x, Y3, 4.0, H, "CTC 强制对齐\n原词时间区间 $[t_s, t_e)$", C_OP)
+    box(ax, x, Y4, 4.0, H, "词区间 → 子词位置映射\n音视特征按区间聚合", C_OP)
+    box(ax, x, Y5, 4.0, H5,
+        "统一 50 步坐标资产\n序列位置体系 · 观测状态\n位置—物理时间映射", C_P1)
 
-    box(ax, 10.1, 5.3, 4.0, 1.2, "附件4 可解释专项\n20 条 + 特征文件", C_IO)
-    box(ax, 10.1, 3.5, 4.0, 1.2, "MCEF\nShapley v(∅) + IG 条件基线", C_P3)
-    box(ax, 10.1, 1.5, 4.0, 1.6, "证据回溯：原词 + [t_s, t_e)\n模态贡献 / TOP-k 文本证据", C_P3)
+    # ---- P2：缺失 → 编码 → 注意力 → 门控 → 预测 ----
+    x = LANE_X[1]
+    box(ax, x, Y1, 4.0, H1, "附件2 标准化特征\n缺失空间构造 (M, P, R, L)\n附件3 无标签专项推理", C_IO)
+    box(ax, x, Y2, 4.0, H, "缺失状态编码\n缺失位置显式进入表示", C_P2)
+    box(ax, x, Y3, 4.0, H, "可用性约束跨模态注意力\n不可用证据不进注意力", C_P2)
+    box(ax, x, Y4, 4.0, H, "可靠性门控融合\n按模态可靠性加权", C_P2)
+    box(ax, x, Y5, 4.0, H5, "双头预测：极性 + 强度\n（MRFN；附件3 推理用 MRFN+）", C_P2, fs=7.0)
 
-    arrow(ax, (2.3, 5.3), (2.3, 4.7))
-    arrow(ax, (2.3, 3.5), (2.3, 3.1))
-    arrow(ax, (7.2, 5.3), (7.2, 4.7))
-    arrow(ax, (7.2, 3.5), (7.2, 3.1))
-    arrow(ax, (12.1, 5.3), (12.1, 4.7))
-    arrow(ax, (12.1, 3.5), (12.1, 3.1))
+    # ---- P3：输入 → 预测 → 归因 → 验证 → 证据 ----
+    x = LANE_X[2]
+    box(ax, x, Y1, 4.0, H1, "附件4 可解释专项\n三模态完整（20 条）", C_IO)
+    box(ax, x, Y2, 4.0, H, "冻结预测器\n复用问题二模型与门控", C_P3)
+    box(ax, x, Y3, 4.0, H, "反事实归因\n模态级精确 Shapley 值\n位置级积分梯度 IG", C_P3, fs=7.0)
+    box(ax, x, Y4, 4.0, H, "保真度验证\n删除 / 插入操作性检验", C_P3)
+    box(ax, x, Y5, 4.0, H5, "证据回溯\n原词 + $[t_s, t_e)$ 时间区间", C_P3)
 
-    arrow(ax, (4.3, 2.6), (5.2, 4.0), rad=0.12)
-    ax.text(4.75, 3.05, "统一表示\n模型输入", ha="center", va="top", fontsize=6.4, color="#4D4D4D")
-    arrow(ax, (4.3, 4.1), (5.2, 5.5), rad=0.12)
-    ax.text(4.75, 5.0, "词位 w\n缺失定义", ha="center", va="top", fontsize=6.4, color="#4D4D4D")
-    arrow(ax, (9.2, 4.1), (10.1, 4.1))
-    ax.text(9.65, 4.45, "模型 +\ngates", ha="center", va="center", fontsize=6.4, color="#4D4D4D")
-    arrow(ax, (2.3, 1.5), (10.6, 1.5), rad=-0.18)
-    ax.text(6.2, 0.42, "P1 映射表：WordPiece → 原词 → 物理时间（P3 证据回溯的坐标底座）",
-            ha="center", fontsize=6.8, color="#4D4D4D")
+    for lx in LANE_X:
+        cx = lx + 2.0
+        for y_top, y_bot in ((Y1, Y2 + H), (Y2, Y3 + H), (Y3, Y4 + H), (Y4, Y5 + H5)):
+            arrow(ax, (cx, y_top), (cx, y_bot))
+
+    # ---- 跨问题耦合（保留原三条）----
+    arrow(ax, (4.3, Y5 + H5 / 2), (5.2, Y1 + H1 / 2), rad=0.03)
+    ax.text(4.75, 6.2, "坐标接口\n观测状态\n位置体系",
+            ha="center", va="center", fontsize=6.2, color="#4D4D4D")
+    arrow(ax, (9.2, Y5 + H5 / 2), (10.1, Y2 + H / 2), rad=0.04)
+    ax.text(9.42, 5.3, "模型 +\n门控值", ha="center", va="center", fontsize=6.2, color="#4D4D4D")
+    arrow(ax, (2.3, Y5), (12.1, Y5), rad=-0.12)
+    ax.text(7.2, 0.35, "位置—原词—物理时间映射（旁路直达问题三：证据时间定位不经预测模型，可独立核验）",
+            ha="center", fontsize=6.6, color="#4D4D4D")
 
     fig.savefig(FIG_OUT_G / "g1_framework.pdf")
     fig.savefig(FIG_OUT_G / "g1_framework.png", dpi=300)
