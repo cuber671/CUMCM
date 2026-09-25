@@ -1,17 +1,34 @@
 #!/usr/bin/env python
-"""结构图：G1 全文总体框架 + P2-F1 缺失空间与 MRFN 结构（非数据图，与代码契约一致）。
+"""结构图：P2-F1 缺失空间构造与 MRFN 前向数据流（非数据图，与代码契约一致）。
 
 Usage:
   .venv/bin/python scripts/figures/plot_diagrams.py
 
 产物：
-  paper/latex/figures/g1_framework.{pdf,png}
   paper/latex/figures/q2/q2_mrfn_architecture.{pdf,png}
+
+版式（2026-09-25 v3，按用户两轮规范定稿，风格与图1 g1_framework 统一）：
+- 左栏「缺失场景构造流程」三级递进，右栏「MRFN 前向数据流」四阶段，其中
+  缺失鲁棒编码四模块（状态编码→BiGRU+可用性注意力→掩码池化→门控融合）
+  由等边距虚线组框包裹（组框标签 6.5pt 粗，置框顶左上，与模块标题分层）；
+- 跨栏映射全直角走线并与右栏层级水平对齐：场景生成（L1 中心→输入行中心）、
+  可用状态输入（L2 中心→组框左缘中点，组内 x_eff/K·V 屏蔽/覆盖率三处共用）、
+  掩码后特征输入（L3 右缘中点→框外左侧通道 90° 肘形→输入层下缘；通道与
+  「可用状态输入」交叉处作半圆线桥 hop）；
+- 元素语义：直角矩形，输入/定义=#ECECEC、处理=白、输出=#FFF0C2（三档亮度
+  92/100/95，2026-09-25 用户终值——输出用色相而非灰度区分，图例色样同常量）；
+  四级线条：边框/主流程 0.75pt 黑实线、辅助映射 0.5pt #666 虚线、
+  组框 0.5pt #999 虚线；右栏模块垂直间距全列统一 0.30；
+  底部图例条五项（字形与实物同比例）；图内不画总标题；
+- 字号四级：栏标题 9pt 粗、模块标题 7.5pt 粗、正文/公式 6.5pt、备注 6pt 灰。
+  变量斜体、函数/缩写正体（mathtext cm）。填充语义与图例逐项对应
+  （左栏仅参数定义为输入灰）。正文未定义的内部术语（受控差异点等）不进图。
 
 内容与 src/p2/models.py::MRFN 逐条对应：§6.1 z = p_i + x_eff + (1−δ)·e^m；
 6 方向 AvailabilityAttention（K/V 屏蔽不可用证据、全空方向严格置零）；
 c_m = Σ(content∧avail)/Σcontent；g = softmax(MLP([h̃;c]))；双头 cls/reg。
-P2 输入维度用附件2 官方 74/35（区别于 P1 自产 25/23）。
+P2 输入维度用附件2 官方 74/35（区别于 P1 自产 25/23）；缺失空间记号
+随正文符号表用 (M, P, r, l̄)（main.tex:173/336）。
 """
 from __future__ import annotations
 
@@ -20,184 +37,255 @@ from pathlib import Path
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.text as mtext
 from matplotlib import font_manager
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.lines import Line2D
+from matplotlib.patches import Arc, FancyArrowPatch, Rectangle
 
 ROOT = Path(__file__).resolve().parents[2]
-FIG_OUT_G = ROOT / "paper/latex/figures"
 FIG_OUT_Q2 = ROOT / "paper/latex/figures/q2"
 
-EDGE = "#34495E"
-C_P1, C_P2, C_P3 = "#DCEAF7", "#FBE7DC", "#EEEAF4"
-C_IO, C_OP = "#EAF2F8", "#FFF4D6"
+INK, AUX, FRAME_C = "#000000", "#666666", "#999999"
+FILL_IN, FILL_PROC, FILL_OUT = "#ECECEC", "#FFFFFF", "#FFF0C2"  # 三档亮度 92/100/95：输入灰/处理白/输出淡玉米（用户定稿，勿"统一"回灰阶）
+X_MAX, Y_TOP, Y_BOT = 14.9, 11.0, -1.05        # 逻辑画布（底部留给图例条）
+FIGSIZE = (6.9, 6.9 * (Y_TOP - Y_BOT) / X_MAX)
+
+LX, LW, CX_L = 0.4, 3.9, 2.35                  # 左栏（右缘 4.3）
+RX, RW, CX_R = 6.1, 8.25, 10.225               # 右栏模块（右缘 14.35）
+GAP = 0.30                                     # 右栏模块垂直间距（全列统一）
+FRAME = (5.85, 1.79, 8.75, 6.02)               # 虚线组框：等边距 0.25 包裹 M1–M4
+LANE_X, HOP_Y = 4.55, 7.02                     # 掩码通道竖段 x；线桥所在高度
+IN_GAP = 0.25                                  # 输入行三小盒水平间距
+
+# (key, x, y, w, h, 填充, 模块标题, 正文)；右栏自下而上按 GAP=0.30 逐层定位，
+# L2 中心=7.02 与 M1 编码层中心严格水平共线，L1 中心=9.345 与输入行中心共线。
+# v3.1 文字瘦身：限定语/内部维度/括号补充移交正文，模块内只留接口与公式。
+MODULES = [
+    ("L1", LX, 8.555, LW, 1.58, FILL_IN, "缺失空间参数",
+     "$M \\subseteq \\{t,a,v\\}$：7 种组合\n"
+     "$P$：头 / 中 / 尾 / 随机\n"
+     "$r$：缺失率 $|S|/w$；$\\bar{l}$：平均段长"),
+    ("L2", LX, 6.445, LW, 1.15, FILL_PROC, "可用状态计算",
+     "$a = o \\cdot (1-b)$\n"
+     "$o$ 自然观测，$b$ 合成抹除"),
+    ("L3", LX, 4.29, LW, 1.15, FILL_PROC, "分模态掩码处理",
+     "text：编码前替换 [MASK]\n"
+     "audio / vision：$x[S]{=}0,\\ b[S]{=}1$"),
+    ("IN1", RX, 8.97, 2.5833, 0.75, FILL_IN, None, "text\n50×768"),
+    ("IN2", RX + 2.8333, 8.97, 2.5833, 0.75, FILL_IN, None, "audio\n50×74"),
+    ("IN3", RX + 5.6667, 8.97, 2.5833, 0.75, FILL_IN, None, "vision\n50×35"),
+    ("PRJ", RX, 7.86, RW, 0.81, FILL_PROC, "特征投影层",
+     "Linear → ReLU → Dropout，$d = 64$（3 模态独立）"),
+    ("M1", RX, 6.48, RW, 1.08, FILL_PROC, "缺失状态编码",
+     "$z = p_i + x_{\\mathrm{eff}} + (1-\\delta)\\cdot e^m$\n"
+     "$a = 0$ 位不进计算图"),
+    ("M2", RX, 5.10, RW, 1.08, FILL_PROC, "双向 GRU + 可用性注意力",
+     "Q←源模态，K / V←证据模态（屏蔽不可用证据）\n"
+     "全空证据方向输出严格置零"),
+    ("M3", RX, 3.72, RW, 1.08, FILL_PROC, "掩码池化",
+     "$c_m = \\sum(\\mathrm{content}\\wedge\\mathrm{avail})\\,/\\,\\sum\\mathrm{content}$"),
+    ("M4", RX, 2.04, RW, 1.38, FILL_PROC, "门控融合",
+     "$g = \\mathrm{softmax}(\\mathrm{MLP}([\\,\\tilde{h};\\, c\\,]))$\n"
+     "$h = \\sum_m g_m\\,\\tilde{h}_m$"),
+    ("OUT", RX, 0.66, RW, 1.08, FILL_OUT, "双头输出",
+     "cls（3 类 logits）+ reg（强度，3·tanh）\n"
+     "附加 gates / coverage 输出"),
+]
+IN_CX = [RX + 1.2917, RX + 4.125, RX + 6.9583]  # 三个输入小盒中心
+MAIN_ARROWS = [((CX_L, 8.555), (CX_L, 7.595)), ((CX_L, 6.445), (CX_L, 5.44)),
+               ((CX_R, 7.86), (CX_R, 7.56)), ((CX_R, 6.48), (CX_R, 6.18)),
+               ((CX_R, 5.10), (CX_R, 4.80)), ((CX_R, 3.72), (CX_R, 3.42)),
+               ((CX_R, 2.04), (CX_R, 1.74))]
+# 图例（样式键, 标签, 字形起点 x），基线 y=-0.55；字形 0.9×0.32 与实物同比例
+LEG_Y, LEG_GLYPH, LEG_H = -0.55, 0.9, 0.32
+LEGEND = [("in", "输入模块", 2.3), ("proc", "处理模块", 4.75),
+          ("out", "输出模块", 7.2), ("solid", "主流程", 9.65),
+          ("aux", "辅助映射", 12.1)]
 
 
 def configure_style() -> None:
-    cjk = Path.home() / ".fonts/NotoSansSC-Regular.otf"
-    if cjk.is_file():
-        font_manager.fontManager.addfont(str(cjk))
-        family = font_manager.FontProperties(fname=str(cjk)).get_name()
-    else:
-        family = "DejaVu Sans"
+    for name in ("NotoSansSC-Regular.otf", "NotoSansSC-Bold.otf"):
+        p = Path.home() / ".fonts" / name
+        if p.is_file():
+            font_manager.fontManager.addfont(str(p))
+    family = "Noto Sans SC" if any(
+        f.name == "Noto Sans SC" for f in font_manager.fontManager.ttflist
+        if "NotoSansSC" in f.fname) else "DejaVu Sans"
     mpl.rcParams.update({
         "font.family": "sans-serif", "font.sans-serif": [family, "DejaVu Sans"],
-        "font.size": 8.0, "axes.unicode_minus": False,
+        "axes.unicode_minus": False,
         "mathtext.fontset": "cm",
         "pdf.fonttype": 42, "ps.fonttype": 42,
         "savefig.bbox": "tight", "savefig.pad_inches": 0.06,
     })
 
 
-def box(ax, x, y, w, h, label, color, fs=7.4, lw=1.0):
-    ax.add_patch(FancyBboxPatch(
-        (x, y), w, h, boxstyle="round,pad=0.03,rounding_size=0.08",
-        linewidth=lw, edgecolor=EDGE, facecolor=color))
-    t = ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
-                linespacing=1.3, fontsize=fs)
-    BOX_TEXTS.append((t, (x, y, w, h)))
-    return (x, y, w, h)
+def main_arrow(ax, start, end) -> None:
+    ax.add_patch(FancyArrowPatch(start, end, arrowstyle="-|>", mutation_scale=11,
+                                 linewidth=0.75, color=INK, shrinkA=0, shrinkB=0,
+                                 zorder=4))
 
 
-BOX_TEXTS: list = []
+def aux_line(ax, start, end) -> None:
+    ax.add_line(Line2D((start[0], end[0]), (start[1], end[1]),
+                       linewidth=0.5, color=AUX, linestyle=(0, (4, 3)), zorder=3))
 
 
-def arrow(ax, start, end, rad=0.0, style="-|>", color=EDGE, lw=1.0):
-    ax.add_patch(FancyArrowPatch(
-        start, end, arrowstyle=style, mutation_scale=12,
-        linewidth=lw, color=color, connectionstyle=f"arc3,rad={rad}"))
+def aux_arrow(ax, start, end) -> None:
+    ax.add_patch(FancyArrowPatch(start, end, arrowstyle="-|>", mutation_scale=9,
+                                 linewidth=0.5, color=AUX,
+                                 linestyle=(0, (4, 3)), shrinkA=0, shrinkB=0,
+                                 zorder=3))
 
 
-def lane_title(ax, x, y, text):
-    ax.text(x, y, text, ha="center", va="center", fontsize=9.0,
-            fontweight="bold", color="#1F2933")
+def module(ax, x, y, w, h, fill, title, body):
+    """直角矩形模块：标题 7.5pt 粗置顶，正文 6.5pt 居中；返回两个文本对象。"""
+    ax.add_patch(Rectangle((x, y), w, h, facecolor=fill, edgecolor=INK,
+                           linewidth=0.75, zorder=2))
+    cx = x + w / 2
+    if title:
+        t_title = ax.text(cx, y + h - 0.16, title, ha="center", va="center",
+                          fontsize=7.5, fontweight="bold", color=INK, zorder=5)
+        t_body = ax.text(cx, y + h - 0.36, body, ha="center", va="top",
+                         multialignment="center", linespacing=1.2,
+                         fontsize=6.5, color=INK, zorder=5)
+    else:
+        t_title = None
+        t_body = ax.text(cx, y + h / 2, body, ha="center", va="center",
+                         multialignment="center", linespacing=1.2,
+                         fontsize=6.5, color=INK, zorder=5)
+    return t_title, t_body
 
 
-def plot_g1() -> None:
-    """G1 总体框架：三泳道 × 五节点（输入→核心处理→输出），一级方法节点。
+def draw() -> tuple[plt.Figure, plt.Axes, dict, list]:
+    fig = plt.figure(figsize=FIGSIZE)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, X_MAX)
+    ax.set_ylim(Y_BOT, Y_TOP)
+    ax.set_axis_off()
 
-    节点命名与 main.tex §2"各问技术路线"定稿文字逐条对应：
-    P1 提取→CTC 对齐→区间映射→坐标资产；P2 = MRFN 三机制（缺失状态编码/
-    可用性约束跨模态注意力/可靠性门控融合）→双头；P3 预测→归因→验证→回溯。
-    工具级/参数级细节（BERT/GRU/维度/联盟数）不进本图。
-    """
-    fig, ax = plt.subplots(figsize=(6.9, 4.75))
-    ax.set_xlim(0, 14.4)
-    ax.set_ylim(0, 9.9)
-    ax.axis("off")
+    module_texts: dict[str, tuple] = {}
+    other_texts: list[tuple[str, mtext.Text]] = []
+    for key, x, y, w, h, fill, title, body in MODULES:
+        module_texts[key] = module(ax, x, y, w, h, fill, title, body)
 
-    lane_title(ax, 2.3, 9.45, "P1 统一语义—时间坐标系")
-    lane_title(ax, 7.2, 9.45, "P2 缺失鲁棒预测")
-    lane_title(ax, 12.1, 9.45, "P3 反事实解释")
+    # 栏标题（9pt 粗）
+    for label, cx in (("缺失场景构造流程", CX_L), ("MRFN 前向数据流", CX_R)):
+        t = ax.text(cx, 10.55, label, ha="center", va="center", fontsize=9.0,
+                    fontweight="bold", color=INK, zorder=5)
+        other_texts.append(("栏标题:" + label[:4], t))
+    # 虚线组框（0.5pt #999）：标签 6.5pt 粗置框顶左上，白底压住框线
+    fx, fy, fw, fh = FRAME
+    ax.add_patch(Rectangle((fx, fy), fw, fh, facecolor="none", edgecolor=FRAME_C,
+                           linewidth=0.5, linestyle=(0, (4, 3)), zorder=1))
+    t = ax.text(fx + 0.18, fy + fh, "缺失鲁棒编码模块", ha="left", va="center",
+                fontsize=6.5, fontweight="bold", color=INK, zorder=5,
+                bbox=dict(facecolor="white", edgecolor="none", pad=1.2))
+    other_texts.append(("组框标签", t))
 
-    # 每泳道五节点：输入(y8.05) → 处理1(6.55) → 处理2(5.05) → 处理3(3.55) → 输出(1.95)
-    LANE_X = (0.3, 5.2, 10.1)
-    Y1, Y2, Y3, Y4, Y5 = 8.05, 6.55, 5.05, 3.55, 1.95
-    H1, H, H5 = 1.15, 1.1, 1.25
+    # 主流程（严格垂直，间距全列统一 0.30）
+    for a, b in MAIN_ARROWS:
+        main_arrow(ax, a, b)
+    for cx in IN_CX:
+        main_arrow(ax, (cx, 8.97), (cx, 8.67))
 
-    # ---- P1：数据 → 提取 → 对齐 → 映射 → 坐标资产 ----
-    x = LANE_X[0]
-    box(ax, x, Y1, 4.0, H1, "附件1 原始多模态样本\n视频 / 音频 / 转写文本（100 条）", C_IO)
-    box(ax, x, Y2, 4.0, H, "多模态特征提取\n文本子词化 · 音视逐帧特征", C_OP)
-    box(ax, x, Y3, 4.0, H, "CTC 强制对齐\n原词时间区间 $[t_s, t_e)$", C_OP)
-    box(ax, x, Y4, 4.0, H, "词区间 → 子词位置映射\n音视特征按区间聚合", C_OP)
-    box(ax, x, Y5, 4.0, H5,
-        "统一 50 步坐标资产\n序列位置体系 · 观测状态\n位置—物理时间映射", C_P1)
+    # 跨栏辅助映射（0.5pt #666 虚线，全直角走线）
+    aux_arrow(ax, (4.30, 9.345), (RX, 9.345))    # 场景生成：L1 中心→输入行中心
+    t = ax.text(5.02, 9.48, "场景生成", ha="center", va="center",
+                fontsize=6.0, color=AUX, zorder=5)
+    other_texts.append(("注:场景生成", t))
+    aux_arrow(ax, (4.30, HOP_Y), (fx, HOP_Y))    # 可用状态输入：L2 中心→组框左缘
+    t = ax.text(5.20, 7.24, "可用状态输入", ha="center", va="center",
+                fontsize=6.0, color=AUX, zorder=5)
+    other_texts.append(("注:可用状态输入", t))
+    # 掩码后特征输入：L3 右缘中点→框外通道→输入层下缘；交叉处半圆线桥
+    aux_line(ax, (4.30, 4.865), (LANE_X, 4.865))
+    aux_line(ax, (LANE_X, 4.865), (LANE_X, HOP_Y - 0.12))
+    ax.add_patch(Arc((LANE_X, HOP_Y), 0.24, 0.24, theta1=90, theta2=270,
+                     linewidth=0.5, color=AUX, linestyle=(0, (4, 3)), zorder=3))
+    aux_line(ax, (LANE_X, HOP_Y + 0.12), (LANE_X, 9.12))
+    aux_arrow(ax, (LANE_X, 9.12), (RX, 9.12))
+    t = ax.text(5.20, 5.60, "掩码后特征输入", ha="center", va="center",
+                fontsize=6.0, color=AUX, zorder=5)
+    other_texts.append(("注:掩码后特征输入", t))
 
-    # ---- P2：缺失 → 编码 → 注意力 → 门控 → 预测 ----
-    x = LANE_X[1]
-    box(ax, x, Y1, 4.0, H1, "附件2 标准化特征\n缺失空间构造 (M, P, R, L)\n附件3 无标签专项推理", C_IO)
-    box(ax, x, Y2, 4.0, H, "缺失状态编码\n缺失位置显式进入表示", C_P2)
-    box(ax, x, Y3, 4.0, H, "可用性约束跨模态注意力\n不可用证据不进注意力", C_P2)
-    box(ax, x, Y4, 4.0, H, "可靠性门控融合\n按模态可靠性加权", C_P2)
-    box(ax, x, Y5, 4.0, H5, "双头预测：极性 + 强度\n（MRFN；附件3 推理用 MRFN+）", C_P2, fs=7.0)
-
-    # ---- P3：输入 → 预测 → 归因 → 验证 → 证据 ----
-    x = LANE_X[2]
-    box(ax, x, Y1, 4.0, H1, "附件4 可解释专项\n三模态完整（20 条）", C_IO)
-    box(ax, x, Y2, 4.0, H, "冻结预测器\n复用问题二模型与门控", C_P3)
-    box(ax, x, Y3, 4.0, H, "反事实归因\n模态级精确 Shapley 值\n位置级积分梯度 IG", C_P3, fs=7.0)
-    box(ax, x, Y4, 4.0, H, "保真度验证\n删除 / 插入操作性检验", C_P3)
-    box(ax, x, Y5, 4.0, H5, "证据回溯\n原词 + $[t_s, t_e)$ 时间区间", C_P3)
-
-    for lx in LANE_X:
-        cx = lx + 2.0
-        for y_top, y_bot in ((Y1, Y2 + H), (Y2, Y3 + H), (Y3, Y4 + H), (Y4, Y5 + H5)):
-            arrow(ax, (cx, y_top), (cx, y_bot))
-
-    # ---- 跨问题耦合（保留原三条）----
-    arrow(ax, (4.3, Y5 + H5 / 2), (5.2, Y1 + H1 / 2), rad=0.03)
-    ax.text(4.75, 6.2, "坐标接口\n观测状态\n位置体系",
-            ha="center", va="center", fontsize=6.2, color="#4D4D4D")
-    arrow(ax, (9.2, Y5 + H5 / 2), (10.1, Y2 + H / 2), rad=0.04)
-    ax.text(9.42, 5.3, "模型 +\n门控值", ha="center", va="center", fontsize=6.2, color="#4D4D4D")
-    arrow(ax, (2.3, Y5), (12.1, Y5), rad=-0.12)
-    ax.text(7.2, 0.35, "位置—原词—物理时间映射（旁路直达问题三：证据时间定位不经预测模型，可独立核验）",
-            ha="center", fontsize=6.6, color="#4D4D4D")
-
-    fig.savefig(FIG_OUT_G / "g1_framework.pdf")
-    fig.savefig(FIG_OUT_G / "g1_framework.png", dpi=300)
-    plt.close(fig)
+    # 底部图例条（字形与实物同填充/同线型）
+    for kind, name, gx in LEGEND:
+        y0, y1 = LEG_Y - LEG_H / 2, LEG_Y + LEG_H / 2
+        if kind in ("in", "proc", "out"):
+            ax.add_patch(Rectangle((gx, y0), LEG_GLYPH, LEG_H,
+                                   facecolor={"in": FILL_IN, "proc": FILL_PROC,
+                                              "out": FILL_OUT}[kind],
+                                   edgecolor=INK, linewidth=0.75, zorder=3))
+        elif kind == "solid":
+            main_arrow(ax, (gx, LEG_Y), (gx + LEG_GLYPH, LEG_Y))
+        else:
+            aux_arrow(ax, (gx, LEG_Y), (gx + LEG_GLYPH, LEG_Y))
+        t = ax.text(gx + LEG_GLYPH + 0.18, LEG_Y, name, ha="left", va="center",
+                    fontsize=6.5, color=INK, zorder=5)
+        other_texts.append(("图例:" + name, t))
+    return fig, ax, module_texts, other_texts
 
 
-def plot_mrfn_arch() -> None:
-    fig, ax = plt.subplots(figsize=(6.9, 5.0))
-    ax.set_xlim(0, 14.4)
-    ax.set_ylim(0, 11.2)
-    ax.axis("off")
+def audit(fig, ax, module_texts: dict, other_texts: list) -> bool:
+    """验收：①模块文字入盒（四向留白 ≥0.03u）②全部文字两两无重叠（间隙 ≥0.02u）。"""
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    inv = ax.transData.inverted()
 
-    # ---- 左列：缺失空间 (M,P,R,L) ----
-    lane_title(ax, 2.2, 10.8, "缺失空间 (M, P, R, L)")
-    box(ax, 0.3, 8.9, 3.8, 1.5,
-        "M ⊆ {t,a,v}：7 组合\nP：头 / 中 / 尾 / 随机\nR：缺失率  |S|/w\nL：平均段长（短散 / 连续块）", C_IO, fs=6.8)
-    box(ax, 0.3, 7.3, 3.8, 1.2,
-        "可用状态 a = o·(1−b)\no 自然观测，b 合成抹除\nCLS/SEP/padding 不抹", C_OP, fs=6.8)
-    box(ax, 0.3, 5.9, 3.8, 1.0,
-        "text：BERT 编码前替换 [MASK]\n（保留位置与 50 步坐标）", "#FDEBD0", fs=6.8)
-    box(ax, 0.3, 4.5, 3.8, 1.0,
-        "audio/vision：x[S]=0, b[S]=1\n（z 中不进计算图）", "#FDEBD0", fs=6.8)
-    arrow(ax, (2.2, 8.9), (2.2, 8.5))
-    arrow(ax, (2.2, 7.3), (2.2, 6.9))
-    arrow(ax, (2.2, 5.9), (2.2, 5.5))
+    def data_bbox(t: mtext.Text):
+        bb = mtext.Text.get_window_extent(t, renderer=renderer)
+        (x0, y0), (x1, y1) = inv.transform(((bb.x0, bb.y0), (bb.x1, bb.y1)))
+        return x0, y0, x1, y1
 
-    # ---- 右列：MRFN 数据流 ----
-    lane_title(ax, 9.5, 10.8, "MRFN 数据流（§6，与代码逐条对应）")
-    x0, w = 5.6, 8.5
-    ws = w / 3 - 0.18
-    for i, (lab, col) in enumerate([
-        ("text\n50×768", C_IO), ("audio\n50×74", C_IO), ("vision\n50×35", C_IO)]):
-        box(ax, x0 + i * (ws + 0.18), 9.6, ws, 1.05, lab + "\n+ avail", col, fs=6.8)
-    box(ax, x0, 8.15, w, 0.85, "投影 Linear→ReLU→Dropout，d=64（3 模态独立）", C_OP, fs=6.8)
-    box(ax, x0, 6.65, w, 1.15,
-        "缺失状态编码（§6.1）\n"
-        "$z = p_i + x_{eff} + (1-\\delta)\\cdot e^m$　（$p_i$ 位置嵌入，$e^m$ 模态缺失嵌入）\n"
-        "a=0 位不进计算图（受控差异点 1）", C_P2, fs=6.8)
-    box(ax, x0, 5.1, w, 1.2,
-        "content 窗口 BiGRU（2d=128）+ 6 方向可用性注意力\nQ←源模态，K/V←证据模态；K/V 屏蔽不可用证据\n全空证据方向输出严格置零（差异点 2）", C_P2, fs=6.8)
-    box(ax, x0, 3.6, w, 1.05,
-        "masked_pool → $\\tilde{h}_m$（每模态 256 = 128 + 2×64）\n"
-        "覆盖率 $c_m$ = Σ(content∧avail) / Σcontent", C_P2, fs=6.8)
-    box(ax, x0, 2.0, w, 1.3,
-        "门控融合（§6.3）：$g = \\mathrm{softmax}(\\mathrm{MLP}([\\tilde{h};c]))$\n"
-        "$h = \\sum_m g_m \\tilde{h}_m$　（$[\\tilde{h};c]$ 为三模态池化与覆盖率拼接）", C_P2, fs=6.6)
-    box(ax, x0, 0.5, w, 1.05,
-        "双头输出：cls（3 类 logits）+ reg（强度，3·tanh）\n附加输出 gates / coverage（门控行为验证）", C_OP, fs=6.8)
+    ok = True
+    spec = {k: (x, y, w, h) for k, x, y, w, h, *_ in MODULES}
+    print("== 验收① 入盒审计（模块标题与正文分别对盒四向留白）==")
+    for key, texts in module_texts.items():
+        bx, by, bw, bh = spec[key]
+        for role, t in zip(("标题", "正文"), texts):
+            if t is None:
+                continue
+            x0, y0, x1, y1 = data_bbox(t)
+            margins = (x0 - bx, y0 - by, bx + bw - x1, by + bh - y1)
+            worst = min(margins)
+            flag = "PASS" if worst >= 0.03 else "FAIL"
+            ok &= flag == "PASS"
+            print(f"  {key}-{role}: 左{margins[0]:+.2f} 下{margins[1]:+.2f} "
+                  f"右{margins[2]:+.2f} 上{margins[3]:+.2f}  最小 {worst:+.2f}  {flag}")
 
-    for y0, y1 in ((9.6, 9.0), (8.15, 7.8), (6.65, 6.3), (5.1, 4.65), (3.6, 3.3), (2.0, 1.55)):
-        arrow(ax, (x0 + w / 2, y0), (x0 + w / 2, y1))
-    arrow(ax, (4.1, 9.35), (5.6, 9.35))
-    ax.text(4.85, 9.62, "场景生成", ha="center", fontsize=6.6, color="#4D4D4D")
-
-    fig.savefig(FIG_OUT_Q2 / "q2_mrfn_architecture.pdf")
-    fig.savefig(FIG_OUT_Q2 / "q2_mrfn_architecture.png", dpi=300)
-    plt.close(fig)
+    print("== 验收② 两两无重叠（含栏标题、副标题、组框标签、旁注、备注与图例）==")
+    items = [(f"{k}-{r}", t) for k, ts in module_texts.items()
+             for r, t in zip(("标题", "正文"), ts) if t is not None] + other_texts
+    boxes = [(name, data_bbox(t)) for name, t in items]
+    n_overlap = 0
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            (na, (ax0, ay0, ax1, ay1)), (nb, (bx0, by0, bx1, by1)) = boxes[i], boxes[j]
+            ox = min(ax1, bx1) - max(ax0, bx0)
+            oy = min(ay1, by1) - max(ay0, by0)
+            if ox > -0.02 and oy > -0.02:
+                n_overlap += 1
+                ok = False
+                print(f"  OVERLAP: {na} × {nb}  (dx={ox:+.2f}, dy={oy:+.2f})")
+    print(f"  重叠对数：{n_overlap}  {'PASS' if n_overlap == 0 else 'FAIL'}")
+    return ok
 
 
 def main() -> int:
     configure_style()
-    FIG_OUT_Q2.mkdir(parents=True, exist_ok=True)
-    plot_g1()
-    plot_mrfn_arch()
-    print("g1_framework / q2_mrfn_architecture → paper/latex/figures/")
+    fig, ax, module_texts, other_texts = draw()
+    if not audit(fig, ax, module_texts, other_texts):
+        print("审计未通过，不落盘")
+        return 1
+    fig.savefig(FIG_OUT_Q2 / "q2_mrfn_architecture.pdf")
+    fig.savefig(FIG_OUT_Q2 / "q2_mrfn_architecture.png", dpi=300)
+    from PIL import Image
+    w, h = Image.open(FIG_OUT_Q2 / "q2_mrfn_architecture.png").size
+    target = X_MAX / (Y_TOP - Y_BOT)
+    print(f"== 验收 PNG {w}×{h}px  宽高比 {w / h:.3f}"
+          f"（画布目标 {target:.3f} ±5%）==")
+    print("q2_mrfn_architecture.{pdf,png} →", FIG_OUT_Q2)
     return 0
 
 
