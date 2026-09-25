@@ -11,7 +11,7 @@ Usage:
   paper/latex/tables/p2_ladder.tex                      P2-T1 模型阶梯表（test 口径统一）
   paper/latex/tables/p2_transfer.tex                    P2-T2 2×2 迁移表（m5 变体口径）
   paper/latex/tables/p2_ablation.tex                    P2-T3 消融与填充基线表
-  paper/latex/tables/p2_final_test.tex                  P4-T4 最终 test 表（含评估批次列）
+  paper/latex/tables/p2_final_test.tex                  P2-T4 最终 test 表（含评估批次列）
 
 口径纪律：
 - 主图/主表只用 test_final_results.json（B0–MRFN，附件2 test 唯一一次评估）；

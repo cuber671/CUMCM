@@ -1,5 +1,10 @@
 论文图源目录。
 
+结构图（scripts/figures/plot_diagrams.py，与 src/p2/models.py 契约逐条对应）：
+- G1 总框架 g1_framework.{pdf,png}：P1→P2→P3 三列 + P1 映射表旁路到 P3；
+- P2-F1 q2_mrfn_architecture.{pdf,png}：左列缺失空间 (M,P,R,L)/a=o·(1−b)/text [MASK] 前置，右列 MRFN 七层数据流（§6.1 嵌入公式→BiGRU+6 方向注意力→池化/覆盖率→门控→双头）；
+- 结构图公式一律用 mathtext（$...$），普通文本里禁止字面 h̃/ᵢ 等 combining 字符（Noto 缺字形）；结构图审计只查文字入盒/重叠，箭头触盒边是设计不算穿盒。
+
 P2 图表（scripts/figures/plot_q2_results.py，全部只读冻结 json）：
 - q2_degradation / q2_scenario_heatmap / q2_fj3_behavior → paper/latex/figures/q2/；
 - p2_ladder / p2_transfer / p2_ablation / p2_final_test → paper/latex/tables/（xelatex 编译验证）。
