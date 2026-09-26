@@ -56,7 +56,7 @@
 
 \subsection{问题背景}
 
-多模态情感预测通过综合文本、语音与视觉信号，判断说话者的情感极性与强度，在人机交互、辅助医疗和舆情分析等领域具有较好的应用价值。相比单一模态，多模态信息能够从不同角度反映情感状态，但不同模态在采样频率、时间尺度和信息表达方式上存在差异，实际数据中还可能出现局部信息缺失，使不同模态之间的信息融合更加困难。同时，模型给出预测结果后，仅提供情感极性和强度仍难以说明判断依据，如何将预测结果与原始输入中的具体信息对应起来，也是多模态情感预测需要进一步考虑的问题。
+多模态情感预测通过综合文本、语音与视觉信号，判断说话者的情感极性与强度，在人机交互、辅助医疗和舆情分析等领域具有较好的应用价值。相比单一模态，多模态信息能够从不同角度反映情感状态，但不同模态在采样频率、时间尺度和信息表达方式上存在差异，实际数据中还可能出现局部信息缺失，使不同模态之间的信息融合更加困难。同时，模型给出预测结果后，仅提供情感极性和强度仍难以说明判断依据，如何将预测结果与原始输入中的具体信息对应起来，也是多模态情感预测需要进一步考虑的问题。多模态情感识别近年在融合架构、缺失处理与可解释性方面取得系统性进展，综述工作~\cite{zhang2024survey}~对深度学习方法的现状与未来方向给出全面梳理，本文的统一坐标—缺失感知—反事实解释三层体系在该综述给出的分类框架下属于"联合优化 + 显式状态建模 + 后验归因"的代表性路线。
 
 本文以CMU-MOSEI（CMU Multimodal Opinion Sentiment and Emotion Intensity）\cite{zadeh2018mosei,zadeh2017tfn}为唯一数据来源，主要研究多模态时序对齐、模态局部缺失条件下的情感预测以及预测结果的解释问题，并按照“统一时序坐标—缺失感知预测—结果解释与证据回溯”的思路逐步展开。
 
@@ -441,6 +441,8 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 训练与评测的统一生成。评测所需缺失场景基于独立种子预构建掩码库生成，保证不同模型在相同场景集合下可公平对比；训练阶段的缺失样本按类别在线生成并混合，各类别在批次内占比为：附件 3 模式的联合局部合成缺失 35%、MCAR 与 Block 合计 40%、整模态 15%、干净样本 10%，配比消融实验见 \ref{subsec:q2-robust} 节。掩码库与训练过程使用相互独立的随机种子，评测场景不会泄露至训练阶段。
 
 \subsection{MRFN 模型的建立}\label{subsec:q2-mrfn}
+MRFN 的设计动机与近期因子分解融合~\cite{yang2026factorize}~与因果不变表示~\cite{mai2026invariant}~思路一致：在统一表征空间下显式建模模态间的互补与冗余，并以门控机制稳定地适应输入分布漂移。本文的差异在于把"缺失状态"从隐变量提升为一等公民，使训练与推理沿同一状态链路传播。
+
 缺失感知机制分为三个环节：输入端的缺失状态编码、交互端的可用性约束跨模态注意力、融合端的可靠性门控。MRFN 的三层机制按该顺序定义，与第二章数据流保持一致。模型输入包含附件 2 对齐特征与 \ref{subsec:q1-coords}~ 节的状态标注，输出极性 logits 与强度预测：
 \(F:(x,\,s,\,a)\ \mapsto\ \bigl(\mathrm{logits}\in\mathbb{R}^{3},\ \hat y=3\tanh(\cdot)\in[-3,3]\bigr),\)
 多任务联合损失为
@@ -507,6 +509,8 @@ A_{q\leftarrow e}(j)=W_O\sum_{j'}\omega_{jj'}\,m_{j'}^{e}\,W_V z_{j'}^{e}.\)
 \end{figure}
 \input{tables/p2_degradation.tex}
 \subsection{鲁棒性评价与实验}\label{subsec:q2-robust}
+鲁棒性评测聚焦于"模态局部缺失条件下模型能否稳定预测"这一题面核心要求。在缺失模态学习领域，相关方法从蒸馏~\cite{zhuang2025cmad}~、不确定性扩散~\cite{qiu2026hypergraph}~到代理驱动~\cite{zhu2025proxy}~形成了三条代表性技术路径；本文 MRFN 走的是"显式状态建模 + 门控信任"路径，与上述方法共享"用辅助信号增强缺失输入下预测"的核心思想，但在状态变量定义与训练目标上更为直接。
+
 本次评测覆盖 31 个缺失场景、8 类缺失实例，共 248 次掩码测试，采用 “效用 —— 退化率 —— 选型分” 三级评价体系得到三条实验结论，完成 H4–H6 的检验。为统一不同量纲指标的对比与聚合，所有指标先映射至 \([0,1]\) 区间的效用值。分类指标，包括准确率、macro-F1，直接作为效用；回归指标按 \(U_{\mathrm{MAE}}=\mathrm{clip}(1-\mathrm{MAE}/6,\,0,\,1)\) 转换。常数 6 对应强度标注值域 \([-3,3]\) 的完整区间，含义为平均误差等于值域全宽时效用归零；相关系数采用 \(U_{\mathrm{Pearson}}=(r_p+1)/2\)，将取值从 \([-1,1]\) 映射到 \([0,1]\)。综合效用分 \(\mathcal{S}=\tfrac12 U_{cls}+\tfrac12 U_{reg}\)，\(U_{cls}\) 为两项分类指标均值，\(U_{reg}\) 为两项回归效用均值。缺失场景退化率定义为 \(D_U=(U_{\mathrm{clean}}-U_r)/\max(U_{\mathrm{clean}},\varepsilon)\)；\(D_U\) 为负代表缺失输入下模型效用反而更高。
 
 31 场景网格。评测基于固定掩码库下的 31 个场景开展：随机散布单模态 \(\{t/a/v\}\times\{10,20,40,60,80\}\%\)，共 15 个；随机散布双模态 \(\{ta/tv/av\}@40\%\)，共 3 个；连续块 \(\{t/a/v\}\times\{\)头 / 中 / 尾 / 随机\(\}@40\%\)，共 12 个；联合缺失 \(av@40\%\)，1 个。每个场景设置 8 个种子化掩码实例，总计 248 次掩码测试。汇总规则：先取单场景 8 个实例的均值作为场景指标，再对 31 个场景等权平均；31 场景均值 \(\mathcal{S}\) 与平均退化 \(\overline{D_{\mathcal{S}}}\) 均遵循该两步计算方式。全部场景满足 \ref{subsec:q2-missing}~ 节的可用性下限，网格覆盖 \ref{subsec:restatement-attachments}~ 节要求分析的三类影响因素。
@@ -898,12 +902,20 @@ check_p3_m1.py..check_p3_m5.py, gen_p3_m6_alignment.py, predict_fj4.py   # 问�
 #   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
 #   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
 #   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+# ---- 关键参数（与正文 §5.1 一致）----
+# MASK_LIBRARY_SEED=2026    掩码库种子；与训练种子分离
+# K_INSTANCES=8             每场景 8 个种子化实例（31×8=248 次）
+# MIN_AVAIL_RATE=0.20       任一模态可用率下限，规避三模态全缺失
+# JOINT_RATE=0.40            联合缺失场景固定 40% 缺失率
+# ---- 契约 ----
 # b_m 只允许落在 o_m=1 的位置；special/padding 永不抹除；a = o*(1-b)
 # 机制：mcar=均匀随机位；block=单连续块(位置 head/mid/tail/random)；
 #       joint=a+v 同位联合（段长~附件3实测分布）；full=整模态
 # 附件3 实测段长分布：{1: 0.7474, 2: 0.1684, 3: 0.0421, 4: 0.0421}
 # 可复现：rng = default_rng([mask_library_seed, combo_idx, k])，逐位复现
 MASK_LIBRARY_SEED = 2026; K_INSTANCES = 8
+MIN_AVAIL_RATE   = 0.20
+JOINT_RATE       = 0.40
 \end{Python}
 \begin{Python}{B.2 掩码原语与门控（src/p2/modules.py、models.py，节选）}
 # AI 辅助编程声明（依竞赛规则第五条）：
@@ -911,13 +923,21 @@ MASK_LIBRARY_SEED = 2026; K_INSTANCES = 8
 #   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
 #   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
 #   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+# ---- 关键超参数（与正文 §5.2 一致）----
+# D_MODEL=128                模态表示维度
+# N_HEADS=2, HEAD_DIM=64     注意力头数 / 工作维（多头=并行扩展）
+# WINDOW_RADIUS=3            内容窗半径，仅跨位置 ±3 交换
+# GATE_HIDDEN=64             门控 MLP 隐层维
+# ---- 机制一：缺失状态编码 ----
 def forward(self, x, a, mod_idx):          # 缺失状态编码：选择运算
     x_eff = torch.where(a_b[..., None], x, zeros)      # a=0 位不进计算图
     return self.pos + x_eff + (~a_b).to(x.dtype)[..., None] * self.miss[mod_idx]
+# ---- 机制二：可用性约束跨模态注意力 ----
 scores = scores.masked_fill(~avail[:, None, None, :], float("-inf"))  # K 侧屏蔽
 v = torch.where(avail[:, None, :, None], v, zeros)                     # V 侧置零
+# ---- 机制三：可靠性门控融合 ----
 empty = ~avail.any(dim=1)             # 证据全不可用 -> 显式置零分支
-g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控
+g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控（cov=覆盖率协变量）
 \end{Python}
 \begin{Python}{B.3 归因计算（src/p3/shapley.py、ig.py，节选）}
 # AI 辅助编程声明（依竞赛规则第五条）：
@@ -925,14 +945,76 @@ g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控
 #   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
 #   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
 #   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+# ---- 关键参数（与正文 §6.2/§6.3 一致）----
+# N_COALITIONS=8            模态全集大小=3，2^3-空=8 联盟
+# SHAPLEY_WEIGHTS={0:1/3,1:1/6,2:1/3}  精确分数权重
+# N_IG_STEPS=64             积分梯度路径步数（中点 Riemann）
+# BASELINE=cond_feature     条件特征基线（avail ≡ o）
+# ---- 模态级 Shapley ----
 def exact_shapley(values):            # 8 联盟精确枚举，精确分数权重
     w = shapley_weights()             # (1/3, 1/6, 1/3)
     for r in range(len(others) + 1):
         for c in combinations(others, r):
             term = (values[S | {m}] - values[S]) * float(w[r])
-# IG：64 步中点 Riemann（代码中路径变量名 alpha 对应正文 \tau）
+# ---- 位置级 IG（代码中路径变量名 alpha 对应正文 \tau）----
 for k in range(1, n_steps + 1):
     alpha = k / n_steps if rule == "right" else (k - 0.5) / n_steps
+\end{Python}
+
+\begin{Python}{B.4 CTC 强制对齐核心算法（src/p1/ctc_align.py，节选）}
+# AI 辅助编程声明（依竞赛规则第五条）：
+#   本程序及代码是在人工智能工具辅助下完成。
+#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
+#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
+#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+# ---- 关键参数（与正文 §4.4 一致）----
+# SAMPLE_RATE=16000         音频重采样率（Hz）
+# FRAME_SHIFT=320           帧移（采样点），对应 20ms
+# CTC_BLANK=0               空白符 id（用于路径扩展）
+# MIN_DUR_MS=20             词区间时长下界（与 C2 检查一致）
+# MAX_DUR_MS=3000           词区间时长上界
+# CONF_FLOOR=0.0            词置信度截断下界（[0,1] 区间）
+# ---- 阶段 1：构造目标 + 维特比回溯 ----
+def ctc_forced_align(logits, target, blank=CTC_BLANK):
+    # logits: [T, V] 帧级字符分布；target: [U] 目标字符 id（已加 '|' 分隔符）
+    T, V = logits.shape; U = len(target)
+    # 扩展路径：每个字符可重复发射 + 字符间允许 blank
+    ext = [blank] + [c for c in target for _ in (0, 1)] + [blank]  # 长度 2U+1
+    S = len(ext)
+    # 前向概率矩阵 alpha，log 域避免下溢
+    alpha = full((T + 1, S), -inf); alpha[0, 0] = 0.0
+    for t in range(1, T + 1):
+        for s in range(S):
+            a = alpha[t-1, s]
+            if s > 0 and ext[s] != blank and ext[s] != ext[s-2]:
+                a = log_add(a, alpha[t-1, s-1])
+            if s > 1 and ext[s] == ext[s-2]:
+                a = log_add(a, alpha[t-1, s-2])
+            alpha[t, s] = a + logits[t-1, ext[s]]
+    # ---- 阶段 2：回溯得字符帧段 ----
+    char_frames = [[] for _ in target]
+    t, s = T, S - 1
+    while t > 0:
+        c = ext[s]
+        if c != blank:
+            char_frames[c].append(t - 1)  # 0-indexed 帧下标
+        # 决定 s 转移方向
+        if s > 0 and alpha[t-1, s-1] + logits[t-1, ext[s-1]] == alpha[t, s]:
+            s -= 1
+        elif s > 1 and ext[s] == ext[s-2] and alpha[t-1, s-2] + logits[t-1, ext[s-2]] == alpha[t, s]:
+            s -= 2
+        t -= 1
+    # ---- 阶段 3：字符帧段聚合为词区间 ----
+    word_intervals = []
+    word_confs = []
+    for w_idx, frames in enumerate(char_frames):
+        if not frames: continue
+        k1, k2 = min(frames), max(frames)
+        t_s = k1 * (FRAME_SHIFT / SAMPLE_RATE) * 1000  # ms
+        t_e = (k2 + 1) * (FRAME_SHIFT / SAMPLE_RATE) * 1000
+        word_intervals.append((t_s, t_e))
+        word_confs.append(round(mean_prob_at_frames(logits, frames, target[w_idx]), 4))
+    return word_intervals, word_confs
 \end{Python}
 
 \clearpage
