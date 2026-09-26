@@ -177,8 +177,9 @@ def main() -> int:
         fig = plt.figure(figsize=(14, 9))
         gs = fig.add_gridspec(3, 1, height_ratios=[2, 1.4, 1.6], hspace=0.42)
         display_cid = cid.replace("$_$", "/")
-        title = (f"{display_cid}  |  status={row['status']}  failure_rate={row['alignment_failure_rate']:.3f}"
-                 f"  edges={esc(','.join(etypes))}  选样标签={esc(','.join(tags))}")
+        edge_disp = "、".join(e.replace("多WordPiece", "多子词").replace("混合FPS", "混合帧率")
+                              for e in etypes)
+        title = f"样本 {display_cid}（{edge_disp}）"
         fig.suptitle(title, fontsize=10)
 
         # 轨1 波形 + 词区间
@@ -199,8 +200,8 @@ def main() -> int:
                          rotation=90, fontsize=5.5, ha="center", va="top")
                 labeled += 1
         ax1.set_xlim(0, duration)
-        ax1.set_ylabel("amplitude")
-        ax1.set_xlabel("time (s)  — 橙色带=词区间（强制对齐）")
+        ax1.set_ylabel("幅值")
+        ax1.set_xlabel("时间— 橙色带=词区间（强制对齐）")
         ax1.set_title("轨1: 波形 + 词区间", fontsize=9)
 
         # 轨2 帧条带 + 人脸框
@@ -218,7 +219,7 @@ def main() -> int:
             arr = np.asarray(thumb)
             ax2.imshow(arr, extent=(f["pts_time"] - dt, f["pts_time"] + dt, 0.1, 0.95), aspect="auto", zorder=2)
         ax2.set_yticks([])
-        ax2.set_xlabel("time (s)  — 缩略图按 pts 落位，红框=top-1 人脸")
+        ax2.set_xlabel("时间— 缩略图按 pts 落位，红框=top-1 人脸")
         ax2.set_title("轨2: 帧条带（≤10 帧，pts 对位）", fontsize=9)
 
         # 轨3 映射表节选

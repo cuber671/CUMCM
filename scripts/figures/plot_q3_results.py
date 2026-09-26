@@ -40,23 +40,11 @@ ATT4 = pd.read_csv(ROOT / "runs/p3/m6/附件4_预测与模态贡献.csv", encodi
 MODS = ("text", "audio", "vision")
 MOD_CN = {"text": "文本", "audio": "语音", "vision": "视觉"}
 CLS_CN = {0: "负", 1: "中", 2: "正"}
-COLOR = {"text": "#0072B2", "audio": "#009E73", "vision": "#D55E00"}
+from figstyle import FONT_SIZE, MOD_COLOR as COLOR, configure
 
 
 def configure_style() -> None:
-    import seaborn as sns
-    sns.set_theme(style="whitegrid", context="paper")
-    cjk = Path.home() / ".fonts/NotoSansSC-Regular.otf"
-    if cjk.is_file():
-        font_manager.fontManager.addfont(str(cjk))
-        family = font_manager.FontProperties(fname=str(cjk)).get_name()
-    else:
-        family = "DejaVu Sans"
-    mpl.rcParams.update({
-        "font.family": "sans-serif", "font.sans-serif": [family, "DejaVu Sans"],
-        "font.size": 8.5, "axes.titlesize": 9.0, "axes.labelsize": 8.5,
-        "axes.unicode_minus": False, "mathtext.fontset": "cm",
-        "pdf.fonttype": 42, "ps.fonttype": 42, "figure.dpi": 200})
+    configure()
 
 
 def fig_del_ins() -> None:
@@ -86,11 +74,11 @@ def fig_del_ins() -> None:
             ax.plot(fracs, mu, ls, color=col, lw=1.4, label=lab)
             ax.fill_between(fracs, mu - sd, mu + sd, color=col, alpha=0.15, lw=0)
         ax.set_xlabel("删除/插入的证据比例 $f$")
-        ax.set_title(titles[c], fontsize=8.5)
+        ax.set_title(titles[c], fontsize=FONT_SIZE["TITLE"])
     axes[0].set_ylabel("预测类概率 $p$（20 条均值）")
     axes[0].legend(frameon=False, fontsize=7.5, loc="best")
     for ext in ("pdf", "png"):
-        fig.savefig(FIG_OUT / f"q3_del_ins.{ext}")
+        fig.savefig(FIG_OUT / f"q3_del_ins.{ext}", dpi=300 if ext == "png" else "figure")
     plt.close(fig)
 
 
@@ -102,11 +90,11 @@ def fig_gphi() -> None:
         ax.scatter(d["gate"], d["abs_phi_cls"], s=2.5, alpha=0.30, lw=0,
                    color=COLOR[m], rasterized=True)
         rho = M5["correlations"][m]["cls"]["spearman"]
-        ax.set_title(f"{MOD_CN[m]}：Spearman $\\rho$={rho:.2f}", fontsize=8.5)
+        ax.set_title(f"{MOD_CN[m]}：Spearman $\\rho$={rho:.2f}", loc="left", fontsize=FONT_SIZE["TITLE"])
         ax.set_xlabel(f"门控 $g_{{{m}}}$")
     axes[0].set_ylabel("$|\\varphi_m^{\\,cls}|$（预测类）")
     for ext in ("pdf", "png"):
-        fig.savefig(FIG_OUT / f"q3_gphi.{ext}")
+        fig.savefig(FIG_OUT / f"q3_gphi.{ext}", dpi=300 if ext == "png" else "figure")
     plt.close(fig)
 
 
@@ -126,10 +114,10 @@ def fig_att4() -> None:
                         zip(ids, d["pred_polarity_id"])], fontsize=7.5)
     ax.invert_yaxis()
     ax.axvline(0, color="black", lw=0.6)
-    ax.set_xlabel("带符号 Shapley 贡献 $\\varphi_m$（预测类，20 条求和排序无关）")
+    ax.set_xlabel("带符号 $\\varphi_m$（预测类）")
     ax.legend(frameon=False, fontsize=8, ncol=3, loc="lower right")
     for ext in ("pdf", "png"):
-        fig.savefig(FIG_OUT / f"q3_att4.{ext}")
+        fig.savefig(FIG_OUT / f"q3_att4.{ext}", dpi=300 if ext == "png" else "figure")
     plt.close(fig)
 
 
