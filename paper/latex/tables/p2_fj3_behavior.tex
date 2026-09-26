@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+  \centering\small
+  \caption{附件3 行为分析关键指标（MRFN+ 集成）}
+  \label{tab:p2-fj3-behavior}
+  \begin{tabular}{l c c c}
+    \toprule
+    指标 & 全样本 & 高缺失半区 & 低缺失半区 \\
+    \midrule
+    样本数 $n$                                       & 30 & 15 & 15 \\
+    平均联合缺失率                                   & 20.67\% & $-$ & $-$ \\
+    单样本最高联合缺失率                             & 50.0\%  & $-$ & $-$ \\
+    存在局部联合缺失样本数                           & 27 & $-$ & $-$ \\
+    音视平均缺失率（$g_{\text{text}}$ 均值）          & $-$ & 0.6158 & 0.6384 \\
+    $g_{\text{text}}$--音视缺失率 Spearman           & \multicolumn{3}{c}{$-0.1955$} \\
+    整体 text-only 一致率                             & 0.7333 & $-$ & $-$ \\
+    text-only 一致率（按音视平均缺失率分半区）        & $-$ & 0.6000 & 0.8667 \\
+    \midrule
+    预测极性分布（负/中/正）                         & \multicolumn{3}{c}{7 / 10 / 13} \\
+    校准温度 $T$                                     & \multicolumn{3}{c}{1.2142} \\
+    校准后期望校准误差 ECE                           & \multicolumn{3}{c}{0.0347（自 0.0424）} \\
+    argmax 不变（校准前后）                          & \multicolumn{3}{c}{30/30} \\
+    单种子间极性一致比例（seed 1/2/3）              & \multicolumn{3}{c}{0.767 / 0.767 / 0.800} \\
+    \bottomrule
+  \end{tabular}
+  \par \smallskip
+  {\small 注：与图~\ref{fig:q2-fj3}~共同支撑两项行为预期报告——门控响应预期未观察到（hi/lo $g_{\text{text}}$ 0.616 对 0.638、Spearman $-0.195$）、text-only 趋同预期未成立（高/低缺失组 0.600 对 0.867）。结论与 §5.4 实验一"音/视缺失下退化接近零"互为补充。困难样本清单（前 5 条按音视平均缺失率降序、同率按校准置信度升序）：附件3\_30/29/27/17/28，随附录 C 交付。}
+\end{table}

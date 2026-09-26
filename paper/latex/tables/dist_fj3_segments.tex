@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+  \centering\small
+  \caption{附件3 联合零行连续缺失段长精确统计}
+  \label{tab:dist-fj3-segments}
+  \begin{tabular}{l r r r r}
+    \toprule
+    段长（位） & 段数 & 实测位数 & 段数占比 & 位数占比 \\
+    \midrule
+    1 & 71  &  71 & 74.7\% & 54.2\% \\
+    2 & 16  &  32 & 16.8\% & 24.4\% \\
+    3 &  4  &  12 &  4.2\% &  9.2\% \\
+    4 &  4  &  16 &  4.2\% & 12.2\% \\
+    $\ge 5$ &  0  &   0 &  0.0\% &  0.0\% \\
+    \midrule
+    全样本合计 & 95 & 131 & 100.0\% & 100.0\% \\
+    \bottomrule
+  \end{tabular}
+  \par \smallskip
+  {\small 注：与图~\ref{fig:dist-missing-runs}~共同给出缺失形态——段长 1 占段数主体（74.7\%），平均段长 1.379 位（=$131/95$），$\ge 4$ 位合计仅 8 段（8.4\%，对应 12.2\% 位数）。缺失以单点散布为主、连续块为辅。实测位数=段数$\times$段长；分母 95 与 131 分别来自 pmf 与 joint\_zero\_rows。}
+\end{table}

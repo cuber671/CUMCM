@@ -181,6 +181,7 @@
       \setCJKfamilyfont{zhkai}{FandolKai-Regular.otf}
       \setCJKfamilyfont{zhxw}[AutoFakeBold=2.15]{FandolKai-Regular.otf}
       \setCJKfamilyfont{zhli}[AutoFakeBold=2.15]{FandolKai-Regular.otf}
+      \setCJKfamilyfont{zhhei}[BoldFont=FandolHei-Bold.otf]{FandolHei-Regular.otf}% 摘要页题目加粗（2026-09-26）
       \ClassInfo{gmcmthesis}{fandol 字体集下以楷体近似替代华文新魏/隶书；%
         追求像素级一致请在 Windows/macOS 字体环境下编译}
     \fi
@@ -294,7 +295,7 @@
   \begin{center}
   \begin{tabularx}{.96\textwidth}{@{}lX@{}}
     {\zihao{-2}\lishu 题\quad 目：} &
-      \hfill\zihao{3}\heiti\@title\hfill\null \\
+      \hfill\zihao{3}\heiti\bfseries\@title\hfill\null \\
     \cline{2-2}
   \end{tabularx}
   \end{center}
@@ -307,7 +308,7 @@
     \section*{\gmcm@cap@abstractname}%
   \else
     \begin{center}%
-    {\zihao{-2}\lishu\gmcm@cap@abstractname\vspace{\z@}}%
+    {\zihao{-2}\lishu\bfseries\gmcm@cap@abstractname\vspace{\z@}}% 摘 要：标签加粗（2026-09-26 用户要求）
     \end{center}%
     \quotation
   \fi}

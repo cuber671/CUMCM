@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+  \centering\small
+  \caption{三模态 Shapley 贡献分位数（附件4，$n=20$）}
+  \label{tab:p3-shapley-quantile}
+  \begin{tabular}{l l c c c c c c}
+    \toprule
+    模态 & 度量 & min & Q25 & median & Q75 & max & 跨度 \\
+    \midrule
+    文本 & $|\varphi_{\text{text}}|$         & 0.050 & 0.185 & 0.401 & 0.531 & 0.682 & 0.632 \\
+    语音 & $|\varphi_{\text{audio}}|$        & 0.008 & 0.020 & 0.029 & 0.045 & 0.157 & 0.149 \\
+    视觉 & $|\varphi_{\text{vision}}|$       & 0.000 & 0.021 & 0.034 & 0.076 & 0.199 & 0.199 \\
+    \midrule
+    文本 & $\varphi_{\text{text}}^{[\hat y]}$（预测类）  & $-$0.097 & 0.185 & 0.401 & 0.531 & 0.682 & 0.779 \\
+    语音 & $\varphi_{\text{audio}}^{[\hat y]}$           & $-$0.157 & $-$0.023 & 0.006 & 0.034 & 0.119 & 0.276 \\
+    视觉 & $\varphi_{\text{vision}}^{[\hat y]}$          & $-$0.123 & $-$0.001 & 0.023 & 0.036 & 0.199 & 0.322 \\
+    \bottomrule
+  \end{tabular}
+  \par \smallskip
+  {\small 注：与图~\ref{fig:dist-shapley}~共同支撑"文本主导"结论——$|\varphi_{\text{text}}|$ 中位数 0.401 约为音视中位数 0.029/0.034 的 12--14 倍；文本跨度 $[0.05, 0.68]$、音/视 $[\sim 0, 0.20]$。20 条样本主导模态分布：文本 18 / 视觉 2 / 语音 0（详见表~\ref{tab:p3-direction}~方向性计数）。样本 \#13 视觉整模态自然缺失使 $|\varphi_v|_{\min}=0$。}
+\end{table}
