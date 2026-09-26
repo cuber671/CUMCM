@@ -2,7 +2,7 @@
   \centering\small
   \caption{问题一验收结果汇总}
   \label{tab:q1-acceptance}
-  \begin{tabular}{p{2.3cm}p{4.6cm}p{3.1cm}l}
+  \begin{tabularx}{\linewidth}{@{}p{2.8cm}p{5.6cm}p{3.8cm}X@{}}
     \toprule
     验收项 & 实测值 & 参照基准 & 判定 \\
     \midrule
@@ -13,6 +13,6 @@
     vision 非零率 & 0.94704 & 0.94473 & $|\Delta|$=0.231\,pp $\le$ 2\,pp \\
     对齐质量状态 & ok/review/rollback = 43/33/24 & — & 质量标记，非管线失败 \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
   \par \smallskip
   \end{table}

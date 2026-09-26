@@ -2,7 +2,7 @@
   \centering\small
   \caption{三模态 Shapley 贡献分位数}
   \label{tab:p3-shapley-quantile}
-  \begin{tabular}{l l c c c c c c}
+  \begin{tabularx}{\textwidth}{@{}lXcccccc@{}}
     \toprule
     模态 & 度量 & min & Q25 & median & Q75 & max & 跨度 \\
     \midrule
@@ -14,6 +14,6 @@
     语音 & $\varphi_{\text{audio}}^{[\hat y]}$           & $-$0.157 & $-$0.023 & 0.006 & 0.034 & 0.119 & 0.276 \\
     视觉 & $\varphi_{\text{vision}}^{[\hat y]}$          & $-$0.123 & $-$0.001 & 0.023 & 0.036 & 0.199 & 0.322 \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
   \par \smallskip
   \end{table}

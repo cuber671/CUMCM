@@ -2,7 +2,7 @@
   \centering\small
   \caption{门控信任按缺失率分箱均值}
   \label{tab:p2-gate}
-  \begin{tabular}{c c c c c}
+  \begin{tabularx}{\textwidth}{@{}Xcccc@{}}
     \toprule
     缺失率档位 & $g_{\text{text}}$ & $g_{\text{audio}}$ & $g_{\text{vision}}$ & 档内实例数 \\
     \midrule
@@ -15,6 +15,6 @@
     全档单调性 & \textbf{降}（$\Delta=0.0348$） & \textbf{降}（$\Delta=0.0072$） & \textbf{升}（$\Delta=0.0029$） & --- \\
     Spearman（缺失率, $g$） & $-1.00$ & $-1.00$ & $+1.00$ & --- \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
   \par \smallskip
   \end{table}

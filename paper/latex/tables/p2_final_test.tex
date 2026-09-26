@@ -2,7 +2,7 @@
   \centering
 \caption{最终测试集结果}
   \label{tab:p2-final}
-  \begin{tabular}{llrrrr}
+  \begin{tabularx}{\textwidth}{@{}XXrrrr@{}}
     \toprule
     模型 & 评估批次 & Acc & macro-F1 & MAE & $\mathcal{S}$ \\
     \midrule
@@ -10,6 +10,6 @@
     MRFN+（单模型均值） & 预注册追加 test & 67.45\% & 62.80\% & 0.644 & 0.760 \\
     MRFN+（3-seed 集成） & 预注册追加 test & 68.64\% & 63.86\% & 0.614 & 0.769 \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
   \par \smallskip
   \end{table}
