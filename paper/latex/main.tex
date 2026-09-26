@@ -862,9 +862,42 @@ train_p2_bft.py, eval_p2_test.py, eval_p2_test_second.py, predict_fj3.py   # 问
 check_p3_m1.py..check_p3_m5.py, gen_p3_m6_alignment.py, predict_fj4.py   # 问题三
 \end{Python}
 
+\subsection*{A.5 人工智能工具使用说明}\label{subsubsec:ai-usage}
+本节依竞赛规则第二条、第四条与第六条登记本文使用的人工智能工具及其使用范围。
+
+\textbf{使用工具}（按规则第三条在参考文献中对应列出）：
+\begin{itemize}
+\item \textbf{GPT-5.6}（开发机构：OpenAI；版本颁布日期：2026 年）——用于信息搜集、思路开拓、辅助编程与论文写作的局部润色。
+\item \textbf{GLM-5.3}（开发机构：智谱 AI；版本颁布日期：2026 年）——用于辅助编程、模型代码生成、章节级语言润色与图表说明草拟。
+\item \textbf{MiniMax3}（开发机构：上海稀宇科技有限公司；版本颁布日期：2026 年）——用于辅助编程、代码调试、论文润色与公式说明生成。
+\end{itemize}
+
+\textbf{使用范围}（依竞赛规则第一条"辅助而非替代"原则）：
+\begin{enumerate}
+\item \textbf{信息搜集与文献检索}：GPT-5.6 用于辅助搜集 CMU-MOSEI 数据集、CTC 对齐算法与可解释性方法的背景文献。
+\item \textbf{思路开拓与方案讨论}：GPT-5.6 与 GLM-5.3 用于辅助讨论统一时序坐标系的形式化方案、MRFN 三层机制的设计权衡、以及 Shapley/IG 解释的判据选择。
+\item \textbf{辅助编程}（依规则第五条，所有生成代码均在交付包中带有注释）：GLM-5.3 与 MiniMax3 用于辅助撰写部分数据处理脚本与可视化代码，例如掩码库生成脚本、Shapley 联盟枚举代码、IG 积分梯度的循环实现。所有 AI 辅助生成的代码段均在交付包对应文件头部以注释形式注明（见附录 B 节选示例）。
+\item \textbf{辅助论文写作}（依规则第二条）：所有呈现在本文中的文字均经过参赛队成员独立理解、改写与验证；GLM-5.3 与 MiniMax3 用于章节级的语言润色、图表说明草拟与摘要关键内容的高亮（最终 17 处加粗由参赛队决策）。
+\end{enumerate}
+
+\textbf{输入与输出处理策略}（依规则第六条）：
+\begin{itemize}
+\item \textbf{数学模型与公式}：所有呈现的模型定义、公式编号与变量符号均由参赛队独立推导后撰写；AI 工具生成的任何"模型"或"公式"候选均经过人工核验，确认存在推导过程或可追溯引用，方予以采纳。未确认来源的 AI 生成内容均不纳入正文。
+\item \textbf{数据分析}：所有实测数字（66.71\%、68.64\%、$\mathcal{S}$ 选型分、Spearman 相关系数等）均来自参赛队自身运行的实际代码与冻结结果，未直接采用 AI 输出数字作为正文数据。
+\item \textbf{配图与配表}：所有图（g1\_framework、q1 系列、q2 系列、q3 系列、dist 系列、replay 等）与表（p2\_ladder、p3\_att4 等）均由参赛队代码生成；AI 工具仅在图表配色与排版格式调整方面提供建议。
+\item \textbf{人工核验比例}：论文正文关键章节（§4.4 CTC 对齐求解、§5.2 MRFN 模型建立、§6.2 模态级 Shapley、§6.3 位置级积分梯度）由参赛队独立撰写，未借助 AI 工具进行语言润色。
+\end{itemize}
+
+\textbf{使用记录保留}：AI 工具的关键提问与回答记录随交付包以 \texttt{ai\_usage\_log/} 目录保存，可供评审回溯核查。
+
 \clearpage
 \section{关键代码}
 \begin{Python}{B.1 合成缺失算子契约（src/p2/missing.py，头部节选）}
+# AI 辅助编程声明（依竞赛规则第五条）：
+#   本程序及代码是在人工智能工具辅助下完成。
+#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
+#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
+#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
 # b_m 只允许落在 o_m=1 的位置；special/padding 永不抹除；a = o*(1-b)
 # 机制：mcar=均匀随机位；block=单连续块(位置 head/mid/tail/random)；
 #       joint=a+v 同位联合（段长~附件3实测分布）；full=整模态
@@ -873,6 +906,11 @@ check_p3_m1.py..check_p3_m5.py, gen_p3_m6_alignment.py, predict_fj4.py   # 问�
 MASK_LIBRARY_SEED = 2026; K_INSTANCES = 8
 \end{Python}
 \begin{Python}{B.2 掩码原语与门控（src/p2/modules.py、models.py，节选）}
+# AI 辅助编程声明（依竞赛规则第五条）：
+#   本程序及代码是在人工智能工具辅助下完成。
+#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
+#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
+#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
 def forward(self, x, a, mod_idx):          # 缺失状态编码：选择运算
     x_eff = torch.where(a_b[..., None], x, zeros)      # a=0 位不进计算图
     return self.pos + x_eff + (~a_b).to(x.dtype)[..., None] * self.miss[mod_idx]
@@ -882,6 +920,11 @@ empty = ~avail.any(dim=1)             # 证据全不可用 -> 显式置零分支
 g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控
 \end{Python}
 \begin{Python}{B.3 归因计算（src/p3/shapley.py、ig.py，节选）}
+# AI 辅助编程声明（依竞赛规则第五条）：
+#   本程序及代码是在人工智能工具辅助下完成。
+#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
+#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
+#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
 def exact_shapley(values):            # 8 联盟精确枚举，精确分数权重
     w = shapley_weights()             # (1/3, 1/6, 1/3)
     for r in range(len(others) + 1):
