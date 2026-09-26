@@ -23,3 +23,18 @@ runs/**
 !runs/**/bert_delta_layer11.pt
 !runs/**/WEIGHTS.md
 runs/**/bert_checkpoint.pt
+
+# Claude Code 本地配置
+.claude/
+paper/.claude/
+
+# LaTeX 编译产物（已在 paper/latex/ 下临时生成，不入库）
+paper/latex/*.aux
+paper/latex/*.bbl
+paper/latex/*.blg
+paper/latex/*.out
+paper/latex/*.toc
+paper/latex/*.log
+paper/latex/*.fls
+paper/latex/*.fdb_latexmk
+paper/latex/*.xdv

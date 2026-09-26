@@ -41,46 +41,87 @@ def save_figure(fig: mpl.figure.Figure, output: Path, *, dpi: int = 600) -> None
     plt.close(fig)
 
 
-def plot_pipeline(output: Path) -> None:
-    fig, ax = plt.subplots(figsize=(6.8, 3.35))
-    ax.set_xlim(0, 12)
+def plot_q1_solving_flow(output: Path) -> None:
+    """Q1 章首求解流程图（图 2，main.tex:§4 章首）。
+
+    五步压缩：输入 → 三路特征 → 统一坐标系 → CTC 对齐 + 边界延拓 → 验收回放。
+    术语与字号遵循 figure-polish-standard-v3：所有文字在 main.tex 中可命中，
+    字号 ≥ 6.0pt，pdftotext 反查通过。
+    """
+    fig, ax = plt.subplots(figsize=(7.4, 3.55))
+    ax.set_xlim(0, 13.2)
     ax.set_ylim(0, 6)
     ax.axis("off")
 
     nodes = [
-        (0.2, 3.7, 2.0, 1.0, "附件1\n视频 + 转写", "#EAF2F8"),
-        (3.0, 4.35, 2.0, 0.85, "文本\nBERT WordPiece\n50格", "#DCEAF7"),
-        (3.0, 3.0, 2.0, 0.85, "语音\n16 kHz WAV\n25维 LLD", "#E1F0E6"),
-        (3.0, 1.65, 2.0, 0.85, "视觉\nPNG + pts_time\nAU + pose", "#FBE7DC"),
-        (6.0, 3.15, 2.25, 1.5, "原词—时间锚\nforced alignment\n半开区间 [t_s,t_e)", "#FFF4D6"),
-        (9.15, 3.15, 2.35, 1.5, "P1 p1.v2\n50步特征 + mask\n映射表 + quality", "#EEEAF4"),
+        # 1. 输入：附件1 视频 + 转写
+        (0.15, 2.85, 1.95, 1.30, "附件1\n视频 + 转写", "#EAF2F8"),
+        # 2. 三路特征生成（三个子框并列）
+        (2.80, 4.40, 2.05, 0.85,
+         "文本\nBERT 50 位\n子词编码", "#DCEAF7"),
+        (2.80, 3.05, 2.05, 0.85,
+         "语音\n16 kHz\n25 维", "#E1F0E6"),
+        (2.80, 1.70, 2.05, 0.85,
+         "视觉\n帧时间戳取帧\n动作单元 + 姿态", "#FBE7DC"),
+        # 3. 统一时序坐标系
+        (5.55, 2.85, 1.95, 1.30,
+         "统一时序坐标系\n50 位网格\n词区间 $[t_{\\mathrm{s}}, t_{\\mathrm{e}})$", "#EEEAF4"),
+        # 4. CTC 对齐 + 边界延拓
+        (8.20, 2.85, 1.95, 1.30,
+         "CTC 对齐\n强制对齐\n截断 / 标点 / 无帧", "#FFF4D6"),
+        # 5. 验收回放
+        (10.90, 2.85, 2.05, 1.30,
+         "验收回放\n四类机器指标\n典型样本", "#EAF2F8"),
     ]
     for x, y, w, h, label, color in nodes:
         ax.add_patch(FancyBboxPatch(
-            (x, y), w, h, boxstyle="round,pad=0.03,rounding_size=0.08",
+            (x, y), w, h, boxstyle="round,pad=0.04,rounding_size=0.10",
             linewidth=1.0, edgecolor="#34495E", facecolor=color,
         ))
-        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center", linespacing=1.35)
+        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
+                linespacing=1.30, fontsize=6.4)
 
     arrows = [
-        ((2.2, 4.2), (3.0, 4.78)),
-        ((2.2, 4.0), (3.0, 3.43)),
-        ((2.2, 3.8), (3.0, 2.08)),
-        ((5.0, 4.78), (6.0, 4.12)),
-        ((5.0, 3.43), (6.0, 3.9)),
-        ((5.0, 2.08), (6.0, 3.35)),
-        ((8.25, 3.9), (9.15, 3.9)),
+        # 附件1 → 三路特征（向右上方、中、下方扇出）
+        ((2.10, 3.85), (2.80, 4.83)),
+        ((2.10, 3.50), (2.80, 3.48)),
+        ((2.10, 3.15), (2.80, 2.13)),
+        # 三路特征 → 统一坐标系（向右汇合）
+        ((4.85, 4.83), (5.55, 3.85)),
+        ((4.85, 3.48), (5.55, 3.50)),
+        ((4.85, 2.13), (5.55, 3.15)),
+        # 统一坐标系 → CTC 对齐
+        ((7.50, 3.50), (8.20, 3.50)),
+        # CTC 对齐 → 验收回放
+        ((10.15, 3.50), (10.90, 3.50)),
     ]
     for start, end in arrows:
         ax.add_patch(FancyArrowPatch(
-            start, end, arrowstyle="-|>", mutation_scale=13,
+            start, end, arrowstyle="-|>", mutation_scale=12,
             linewidth=1.0, color="#34495E", connectionstyle="arc3,rad=0.0",
         ))
-    ax.text(6.0, 0.72, "WordPiece为符号坐标；语音和视觉仅通过原词时间区间映射。",
-            ha="left", va="center", fontsize=7.6, color="#4D4D4D")
-    ax.text(6.0, 0.38, "vision: pts_time   |   audio: (k+0.5)×10 ms   |   alignment: 20 ms CTC quantization",
-            ha="left", va="center", fontsize=7.4, color="#4D4D4D")
-    save_figure(fig, output / "q1_pipeline.pdf")
+
+    # 阶段标注（顶部小字，标识 5 个阶段）
+    stage_labels = [
+        (1.12, 5.55, "① 输入"),
+        (3.82, 5.55, "② 三路特征"),
+        (6.52, 5.55, "③ 坐标"),
+        (9.17, 5.55, "④ 对齐"),
+        (11.92, 5.55, "⑤ 验收"),
+    ]
+    for x, y, label in stage_labels:
+        ax.text(x, y, label, ha="center", va="center",
+                fontsize=6.4, color="#4D4D4D", fontweight="bold")
+
+    # 底部说明（用正文术语，不出现代码字段名）
+    ax.text(6.6, 0.78,
+            "§4.1 数据事实 → §4.2 坐标系 → §4.3 特征 + 边界延拓 → §4.4 CTC 对齐 → §4.5 验收",
+            ha="center", va="center", fontsize=6.6, color="#4D4D4D")
+    ax.text(6.6, 0.38,
+            "位置—物理时间接口贯穿全章；映射链由 §4.2 起算，§6 证据回溯直接复用",
+            ha="center", va="center", fontsize=6.2, color="#6B7280")
+
+    save_figure(fig, output / "q1_solving_flow.pdf", dpi=300)
 
 
 def plot_quality(run_root: Path, output: Path) -> None:
@@ -557,7 +598,7 @@ def main() -> int:
     args = parser.parse_args()
     configure_style()
     args.output.mkdir(parents=True, exist_ok=True)
-    plot_pipeline(args.output)
+    plot_q1_solving_flow(args.output)
     plot_quality(args.run_root, args.output)
     plot_observation_heatmaps(args.run_root, args.output)
     plot_fps_distribution(args.run_root, args.output)
