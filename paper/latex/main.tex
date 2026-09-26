@@ -4,7 +4,7 @@
 % 编译：xelatex main && bibtex main && xelatex main && xelatex main
 % 章节树冻结于 paper/outline.md v3（2026-09-25）：七章合并结构；
 % 图表接线 = 正文正式 12 图 9 表，图号由 LaTeX 顺排（G1=图1），全部 \ref 引用。
-\documentclass[colorprint]{gmcmthesis}
+\documentclass[colorprint,nocoverzero]{gmcmthesis}
 \pagestyle{plain}% 官方格式无页眉；ctexart 默认 headings 会在 headheight=0 下与正文重叠
 
 %% 图表公式编号按章复位（cls 仅改 \the 格式、未复位计数器，按附件3“编号按章”补齐）
@@ -35,9 +35,12 @@
 \keywords{多模态情感预测；时序对齐；模态局部缺失；鲁棒融合；可解释性}
 \end{abstract}
 
-%% ============ 正文（结构冻结于 paper/outline.md v5.3） ============
-%% 附件2 规范：摘要页的下一页开始论文正文，故不设目录页（2026-09-26 审查删除）
+%% ============ 目录（独立成页；2026-09-26 用户拍板恢复，对附件2"摘要页下一页起正文"作从宽处理） ============
 \clearpage
+\maketoc
+\clearpage
+
+%% ============ 正文（结构冻结于 paper/outline.md v5.3） ============
 \section{问题重述}
 
 
