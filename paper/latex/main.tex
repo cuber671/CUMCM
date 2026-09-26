@@ -216,7 +216,14 @@
 
 \clearpage
 \section{问题一：时序对齐模型的建立与求解}
-原始视频、音频与文本转写在采样粒度和坐标系上互不相同，直接联合建模会引入位置偏差。本章的核心任务是建立\textbf{统一的 50 步序列坐标系}，并保证网格位置可双向映射回原始素材的物理时间——前者支撑逐位置联合建模，后者支撑后续解释与回溯接口。本章先给出两组实测分布作为建模依据（图~\ref{fig:dist-offset}~与图~\ref{fig:dist-length}），整体技术路线流程见图~\ref{fig:g1}。
+原始视频、音频与文本转写在采样粒度和坐标系上互不相同，直接联合建模会引入位置偏差。本章的核心任务是建立\textbf{统一的 50 步序列坐标系}，并保证网格位置可双向映射回原始素材的物理时间——前者支撑逐位置联合建模，后者支撑后续解释与回溯接口。本章先给出两组实测分布作为建模依据（图~\ref{fig:dist-offset}~与图~\ref{fig:dist-length}），本章求解流程见图~\ref{fig:q1-solving}，全文整体技术路线流程见图~\ref{fig:g1}。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/q1/q1_solving_flow.pdf}
+  \caption{问题一求解流程}
+  \label{fig:q1-solving}
+\end{figure}
+
 
 
 
@@ -332,7 +339,14 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 \end{equation}
 （帧移 320 采样 @ 16 kHz，即 C2 时长下界）。词置信度定义唯一：词内全部字符帧段的并集上、被指派标记的逐帧发射后验 $p(y_k{=}c\mid X)$ 的均值（截断于 $[0,1]$）。时刻约定：词区间端点取对齐帧边界（量化格点）；\ref{subsec:q1-ops}~节特征帧的归属判定则以帧中心时刻与该物理区间比较（语音 $(k+0.5)\times 10$ ms、视觉帧时间戳）——端点定义与帧归属是两个环节的约定，分别声明、不混用。
 
-解码流程。①转写规范化（小写化与字符规整）；②构造对齐词序列并编码字符目标（标点不入序列，C1 失败词不入目标）；③音频重采样后经声学模型编码；④维特比求解 $\pi^*$，按上述聚合得到词区间与置信度；⑤执行合法性判定 C1--C3；⑥通过者连同置信度写入映射表，失败者按下节分层处置。
+解码流程。①转写规范化（小写化与字符规整）；②构造对齐词序列并编码字符目标（标点不入序列，C1 失败词不入目标）；③音频重采样后经声学模型编码；④维特比求解 $\pi^*$，按上述聚合得到词区间与置信度；⑤执行合法性判定 C1--C3；⑥通过者连同置信度写入映射表，失败者按下节分层处置。图~\ref{fig:q1-ctc}~给出了一个五词样本的逐步对齐示例：维特比回溯得到字符帧段后，经分隔符切分归词，即得各词区间与词置信度。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/q1/q1_ctc_alignment.pdf}
+  \caption{CTC 逐步对齐示例}
+  \label{fig:q1-ctc}
+\end{figure}
+
 
 合法性判定（C1--C3）。对每个词按固定顺序执行三条可机械复算的检查：
 \begin{itemize}
@@ -387,7 +401,7 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 精准统一的序列位置粒度与观测状态标准，是实现多模态缺失数据建模的基础前提。依托前文4.2节构建的多模态序列坐标系，本文搭建了面向各类缺失场景的鲁棒预测模型MRFN。本章整体研究流程如下：首先对缺失空间与合成缺失算子进行规范化形式化定义；其次构建MRFN模型的三层核心机制与分阶段训练方案，并基于31类缺失场景完成模型性能评测；最后通过八轮预注册实验筛选最优模型变体，实现附件3数据集的全量预测任务。本章完整求解流程如图~\ref{fig:q2-solving}。
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\textwidth]{figures/q2/q2_solving_flow.png}
+  \includegraphics[width=0.85\textwidth]{figures/q2/q2_solving_flow.pdf}
   \caption{问题二求解流程}
   \label{fig:q2-solving}
 \end{figure}
@@ -442,7 +456,13 @@ A_{q\leftarrow e}(j)=W_O\sum_{j'}\omega_{jj'}\,m_{j'}^{e}\,W_V z_{j'}^{e}.\)
 
 由表~\ref{tab:p2-ladder} 可得到三点结论。第一，B1 相较 B0 的指标提升，印证独立模态编码能够有效优化特征表达。第二，B2、B3 的干净分类指标基本持平，但回归误差持续下降，说明时序建模与跨模态交互主要提升强度预测精度。第三，MRFN 相较 B3 取得最优的干净分类性能与最小的多场景退化幅度，同时参数量更低，综合性能更优。由于 B3 至 MRFN 同步更新两处模块，精细组件归因交由后续消融实验完成。本文所有阶梯结果与 31 类场景评测均采用测试集终评，模型早停、结构选型等全部决策均在验证集完成，严格规避数据泄露。
 \input{tables/p2_ladder.tex}
-三种子重复训练的性能分布见图~\ref{fig:dist-ladder}。
+模型阶梯的组织与三种子重复训练的性能分布分别见图~\ref{fig:q2-ladder}~和图~\ref{fig:dist-ladder}。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/q2/q2_ladder.pdf}
+  \caption{模型阶梯与预注册筛选示意}
+  \label{fig:q2-ladder}
+\end{figure}
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.78\textwidth]{figures/dist/d_ladder_box.pdf}
@@ -569,7 +589,14 @@ A_{q\leftarrow e}(j)=W_O\sum_{j'}\omega_{jj'}\,m_{j'}^{e}\,W_V z_{j'}^{e}.\)
 
 \clearpage
 \section{问题三：可解释情感预测模型的建立与求解}
-仅给出极性与强度的预测值无法独立复核判断依据。本章在冻结的 \textbf{MRFN+} 之上叠加反事实解释框架：\textbf{模态级贡献由精确 Shapley 值度量}，\textbf{位置级归因由积分梯度给出}，两套反事实参照使证据可回溯至原词与物理时间；解释可信性按运行前冻结的 \textbf{A--F 六项判据}验证。
+仅给出极性与强度的预测值无法独立复核判断依据。本章在冻结的 \textbf{MRFN+} 之上叠加反事实解释框架：\textbf{模态级贡献由精确 Shapley 值度量}，\textbf{位置级归因由积分梯度给出}，两套反事实参照使证据可回溯至原词与物理时间；解释可信性按运行前冻结的 \textbf{A--F 六项判据}验证。本章求解流程见图~\ref{fig:q3-solving}。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/q3/q3_solving_flow.pdf}
+  \caption{问题三求解流程}
+  \label{fig:q3-solving}
+\end{figure}
+
 
 \subsection{解释任务的形式化}\label{subsec:q3-task}
 问题三要求在预测结果之外给出判断依据——以可量化、可复核的方式说明本次判断主要依据了哪些模态、哪些时间位置的输入。每条样本的解释输出包含五要素：极性/强度、模态贡献 $\varphi_m$、主要参考模态、关键证据与物理时间区间，对应完备性、保真性、一致性与可回溯性四项性质；本节同时明确两套反事实参照的分工：Shapley 使用联盟级 $v(\varnothing)$（avail$\equiv$0），IG 使用条件特征基线（avail$\equiv$o；缺失架构在全部模态未观测时梯度归零）。
