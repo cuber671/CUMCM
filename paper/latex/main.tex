@@ -532,13 +532,7 @@ g=\mathrm{softmax}\Bigl(\mathrm{MLP}\bigl([\tilde h_{\mathrm{text}};\tilde h_{\m
 
 
 \section{问题三：可解释情感预测模型的建立与求解}
-仅给出极性与强度的预测值无法独立复核判断依据。本章在冻结的 MRFN+ 之上叠加反事实解释框架：模态级贡献由精确 Shapley 值度量，位置级归因由积分梯度给出，两套反事实参照使证据可回溯至原词与物理时间；解释可信性按运行前冻结的 A--F 六项判据验证。本章求解流程见图~\ref{fig:q3-solving}。
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.85\textwidth]{figures/q3/q3_solving_flow.pdf}
-  \caption{问题三求解流程：解释任务形式化→模态级 Shapley→位置级 IG→六项保真度检验→附件4 证据回溯}
-  \label{fig:q3-solving}
-\end{figure}
+仅给出极性与强度的预测值无法独立复核判断依据。本章在冻结的 MRFN+ 之上叠加反事实解释框架：模态级贡献由精确 Shapley 值度量，位置级归因由积分梯度给出，两套反事实参照使证据可回溯至原词与物理时间；解释可信性按运行前冻结的 A--F 六项判据验证。
 
 \subsection{解释任务的形式化}\label{subsec:q3-task}
 问题三要求在预测结果之外给出判断依据——以可量化、可复核的方式说明本次判断主要依据了哪些模态、哪些时间位置的输入。五要素解释输出（极性/强度、$\varphi_m$ 模态贡献、主要参考模态、关键证据、物理时间区间）（完备性/保真性/一致性/可回溯性），并明确两套反事实参照系的分工——Shapley 用联盟级 $v(\varnothing)$（avail≡0），IG 用条件特征基线（avail≡o，缺失架构在全部模态未观测时梯度归零）。
