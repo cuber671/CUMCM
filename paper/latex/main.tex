@@ -188,7 +188,7 @@
 原始视频、音频与文本转写在采样粒度和坐标系上互不相同，直接联合建模会引入位置偏差。本章的核心任务是建立统一的 50 步序列坐标系，并保证网格位置可双向映射回原始素材的物理时间——前者支撑逐位置联合建模，后者支撑后续解释与回溯接口。本章求解流程见图~\ref{fig:q1-solving}。
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\textwidth]{figures/q1/q1_solving_flow.pdf}
+  \includegraphics[width=0.85\textwidth]{figures/q1/q1_solving_flow.png}
   \caption{问题一求解流程：原始素材→子词化与特征提取→CTC 强制对齐→统一时序坐标→四类机器指标验收}
   \label{fig:q1-solving}
 \end{figure}
@@ -345,7 +345,7 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 统一的位置粒度与观测状态是缺失建模的前提。本章在该坐标系之上构建面向缺失场景的鲁棒预测模型 MRFN：先形式化缺失空间与合成算子，再搭建 MRFN 三层机制与训练阶梯并开展 31 场景评测，最后通过八轮预注册筛选改进变体并完成附件 3 的全量预测。本章求解流程见图~\ref{fig:q2-solving}。
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\textwidth]{figures/q2/q2_solving_flow.pdf}
+  \includegraphics[width=0.85\textwidth]{figures/q2/q2_solving_flow.png}
   \caption{问题二求解流程：缺失空间定义→MRFN 三层机制→训练与阶梯→31 场景鲁棒性评测→改进采纳与附件3 预测}
   \label{fig:q2-solving}
 \end{figure}
