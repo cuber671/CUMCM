@@ -93,9 +93,8 @@
   commentstyle=\color{pComment},
   backgroundcolor=\color{gray!5},
   rulecolor=\color{gray!50},
-  title=#1,
   showspaces=false, showstringspaces=false, showtabs=false,
-  tabsize=4, captionpos=t, breaklines=true,
+  tabsize=4, breaklines=true,
 }}{}
 
 \lstset{

@@ -1,0 +1,615 @@
+#!/usr/bin/env python
+"""Generate reproducible Question 1 figures from frozen P1 artifacts.
+
+Usage:
+  .venv/bin/python scripts/figures/plot_q1.py
+
+The script only reads ``runs/p1_full`` and writes final assets to
+``paper/latex/figures/q1``. Replay figures that require selected video frames
+are intentionally handled by a separate generator.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pickle
+from pathlib import Path
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
+from figstyle import FONT_SIZE, MOD_COLOR, STATUS, configure
+
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_RUN = ROOT / "runs" / "p1_full"
+DEFAULT_OUT = ROOT / "paper" / "latex" / "figures" / "q1"
+
+
+def configure_style() -> None:
+    configure()
+
+
+def save_figure(fig: mpl.figure.Figure, output: Path, *, dpi: int = 600) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout(pad=0.7)
+    fig.savefig(output, dpi=dpi)
+    plt.close(fig)
+
+
+def plot_q1_solving_flow(output: Path) -> None:
+    """Q1 章首求解流程图（图 2，main.tex:§4 章首）。
+
+    五步压缩：输入 → 三路特征 → 统一坐标系 → CTC 对齐 + 边界延拓 → 验收回放。
+    术语与字号遵循 figure-polish-standard-v3：所有文字在 main.tex 中可命中，
+    字号 ≥ 6.0pt，pdftotext 反查通过。
+    """
+    fig, ax = plt.subplots(figsize=(7.4, 3.55))
+    ax.set_xlim(0, 13.2)
+    ax.set_ylim(0, 6)
+    ax.axis("off")
+
+    nodes = [
+        # 1. 输入：附件1 视频 + 转写
+        (0.15, 2.85, 1.95, 1.30, "附件1\n视频 + 转写", "#EAF2F8"),
+        # 2. 三路特征生成（三个子框并列）
+        (2.80, 4.40, 2.05, 0.85,
+         "文本\nBERT 50 位\n子词编码", "#DCEAF7"),
+        (2.80, 3.05, 2.05, 0.85,
+         "语音\n16 kHz\n25 维", "#E1F0E6"),
+        (2.80, 1.70, 2.05, 0.85,
+         "视觉\n帧时间戳取帧\n动作单元 + 姿态", "#FBE7DC"),
+        # 3. 统一时序坐标系
+        (5.55, 2.85, 1.95, 1.30,
+         "统一时序坐标系\n50 位网格\n词区间 $[t_{\\mathrm{s}}, t_{\\mathrm{e}})$", "#EEEAF4"),
+        # 4. CTC 对齐 + 边界延拓
+        (8.20, 2.85, 1.95, 1.30,
+         "CTC 对齐\n强制对齐\n截断 / 标点 / 无帧", "#FFF4D6"),
+        # 5. 验收回放
+        (10.90, 2.85, 2.05, 1.30,
+         "验收回放\n四类机器指标\n典型样本", "#EAF2F8"),
+    ]
+    for x, y, w, h, label, color in nodes:
+        ax.add_patch(FancyBboxPatch(
+            (x, y), w, h, boxstyle="round,pad=0.04,rounding_size=0.10",
+            linewidth=1.0, edgecolor="#34495E", facecolor=color,
+        ))
+        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
+                linespacing=1.30, fontsize=6.4)
+
+    arrows = [
+        # 附件1 → 三路特征（向右上方、中、下方扇出）
+        ((2.10, 3.85), (2.80, 4.83)),
+        ((2.10, 3.50), (2.80, 3.48)),
+        ((2.10, 3.15), (2.80, 2.13)),
+        # 三路特征 → 统一坐标系（向右汇合）
+        ((4.85, 4.83), (5.55, 3.85)),
+        ((4.85, 3.48), (5.55, 3.50)),
+        ((4.85, 2.13), (5.55, 3.15)),
+        # 统一坐标系 → CTC 对齐
+        ((7.50, 3.50), (8.20, 3.50)),
+        # CTC 对齐 → 验收回放
+        ((10.15, 3.50), (10.90, 3.50)),
+    ]
+    for start, end in arrows:
+        ax.add_patch(FancyArrowPatch(
+            start, end, arrowstyle="-|>", mutation_scale=12,
+            linewidth=1.0, color="#34495E", connectionstyle="arc3,rad=0.0",
+        ))
+
+    # 阶段标注（顶部小字，标识 5 个阶段）
+    stage_labels = [
+        (1.12, 5.55, "① 输入"),
+        (3.82, 5.55, "② 三路特征"),
+        (6.52, 5.55, "③ 坐标"),
+        (9.17, 5.55, "④ 对齐"),
+        (11.92, 5.55, "⑤ 验收"),
+    ]
+    for x, y, label in stage_labels:
+        ax.text(x, y, label, ha="center", va="center",
+                fontsize=6.4, color="#4D4D4D", fontweight="bold")
+
+    # 底部说明（用正文术语，不出现代码字段名）
+    ax.text(6.6, 0.78,
+            "§4.1 数据事实 → §4.2 坐标系 → §4.3 特征 + 边界延拓 → §4.4 CTC 对齐 → §4.5 验收",
+            ha="center", va="center", fontsize=6.6, color="#4D4D4D")
+    ax.text(6.6, 0.38,
+            "位置—物理时间接口贯穿全章；映射链由 §4.2 起算，§6 证据回溯直接复用",
+            ha="center", va="center", fontsize=6.2, color="#6B7280")
+
+    save_figure(fig, output / "q1_solving_flow.pdf", dpi=300)
+
+
+def plot_quality(run_root: Path, output: Path) -> None:
+    manifest = pd.read_csv(run_root / "manifest.csv")
+    behavior = json.loads((run_root / "behavior_detail.json").read_text(encoding="utf-8"))
+    status_order = ["ok", "review", "rollback"]
+    status_colors = {"ok": "#59A14F", "review": "#F2CF5B", "rollback": "#E15759"}
+
+    fig, axes = plt.subplots(2, 2, figsize=(6.6, 4.7))
+    ax = axes[0, 0]
+    counts = manifest["alignment_status"].value_counts().reindex(status_order, fill_value=0)
+    ax.bar(counts.index, counts.values, color=[status_colors[s] for s in status_order])
+    ax.set_title("100条样本的对齐状态")
+    ax.set_ylabel("样本数")
+    for i, value in enumerate(counts.values):
+        ax.text(i, value + 1, str(value), ha="center", va="bottom")
+
+    ax = axes[0, 1]
+    sns.histplot(manifest["vision_coverage"], bins=np.linspace(0, 1, 11), ax=ax, color="#4E79A7")
+    ax.set_title("视觉观测覆盖率")
+    ax.set_xlabel("content-position观测比例")
+    ax.set_ylabel("样本数")
+
+    ax = axes[1, 0]
+    reason = behavior["C_缺失原因比例"]["vision_content_position比例"]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败", "其他"]
+    values = [reason.get(label, 0.0) * 100 for label in labels]
+    ax.bar(labels, values, color=["#59A14F", "#F28E2B", "#B07AA1", "#E15759", "#BAB0AC"])
+    ax.set_title("视觉缺失原因（content-position）")
+    ax.set_ylabel("比例（%）")
+    ax.tick_params(axis="x", rotation=25)
+
+    ax = axes[1, 1]
+    sns.scatterplot(
+        data=manifest, x="alignment_failure_rate", y="vision_coverage",
+        hue="alignment_status", hue_order=status_order, palette=status_colors,
+        s=38, ax=ax, legend=True,
+    )
+    ax.set_title("对齐失败率与视觉覆盖率")
+    ax.set_xlabel("对齐失败率")
+    ax.set_ylabel("视觉观测覆盖率")
+    ax.legend(title="状态", fontsize=6.5, title_fontsize=7.5, loc="best")
+    save_figure(fig, output / "q1_quality_overview.pdf")
+
+
+def _load_sample_masks(run_root: Path) -> tuple[list[str], np.ndarray, np.ndarray]:
+    paths = sorted((run_root / "samples").glob("*.pkl"))
+    ids, audio, vision = [], [], []
+    for path in paths:
+        with path.open("rb") as handle:
+            sample = pickle.load(handle)
+        ids.append(sample["id"])
+        audio.append(sample["observed_mask_audio"].astype(np.uint8))
+        vision.append(sample["observed_mask_video"].astype(np.uint8))
+    return ids, np.asarray(audio), np.asarray(vision)
+
+
+def plot_observation_heatmaps(run_root: Path, output: Path) -> None:
+    ids, audio, vision = _load_sample_masks(run_root)
+    order = np.argsort(vision.mean(axis=1))
+    labels = [ids[index] for index in order]
+    fig, axes = plt.subplots(2, 1, figsize=(6.6, 5.8), sharex=True)
+    for ax, values, title in zip(axes, (audio[order], vision[order]), ("语音自然观测状态", "视觉自然观测状态")):
+        xlabels = [str(index) if index % 5 == 0 else "" for index in range(50)]
+        sns.heatmap(
+            values, ax=ax, cmap=sns.color_palette(["#F1F1F1", "#4E79A7"], as_cmap=True),
+            vmin=0, vmax=1, cbar=False, xticklabels=xlabels, yticklabels=False,
+        )
+        ax.set_title(title)
+        ax.set_ylabel("按覆盖率排序的样本")
+        ax.tick_params(axis="x", length=2, pad=2)
+    axes[-1].set_xlabel("WordPiece 网格位置")
+    save_figure(fig, output / "q1_observation_heatmap.pdf")
+
+
+def plot_fps_distribution(run_root: Path, output: Path) -> None:
+    manifest = pd.read_csv(run_root / "manifest.csv")
+    fig, axes = plt.subplots(1, 2, figsize=(6.6, 2.9))
+    sns.histplot(manifest["fps"], bins=12, color="#4E79A7", ax=axes[0])
+    axes[0].set_title("由 PTS 间隔估计的帧率")
+    axes[0].set_xlabel("帧率（FPS）")
+    axes[0].set_ylabel("样本数")
+    sns.histplot(manifest["vision_coverage"], bins=np.linspace(0, 1, 11), color="#F28E2B", ax=axes[1])
+    axes[1].set_title("视觉覆盖率分布")
+    axes[1].set_xlabel("content-position观测比例")
+    axes[1].set_ylabel("样本数")
+    save_figure(fig, output / "q1_timing_coverage.pdf")
+
+
+def plot_coordinate_mapping(run_root: Path, output: Path) -> None:
+    """Show one real WordPiece-to-word-to-time mapping example."""
+    sample_path = run_root / "samples" / "-3g5yACwYnA__13.pkl"
+    with sample_path.open("rb") as handle:
+        sample = pickle.load(handle)
+    rows = [
+        row for row in sample["wp_word_time_map"]
+        if row["word_id"] is not None and row["t_s"] is not None
+    ][:16]
+    fig, axes = plt.subplots(2, 1, figsize=(6.6, 3.65), gridspec_kw={"height_ratios": [1.0, 1.45]})
+    palette = sns.color_palette("colorblind", n_colors=max(2, len({row["word_id"] for row in rows})))
+    word_colors = {}
+    for row in rows:
+        word_colors.setdefault(row["word_id"], palette[len(word_colors) % len(palette)])
+
+    ax = axes[0]
+    for row in rows:
+        position = row["position"]
+        color = word_colors[row["word_id"]]
+        ax.add_patch(plt.Rectangle((position - 0.46, 0.15), 0.92, 0.65, facecolor=color, edgecolor="white", linewidth=0.7))
+        ax.text(position, 0.48, row["token"], ha="center", va="center", fontsize=7.3)
+    ax.set_xlim(rows[0]["position"] - 0.6, rows[-1]["position"] + 0.6)
+    ax.set_ylim(0, 1)
+    ax.set_yticks([])
+    ax.set_xticks([row["position"] for row in rows])
+    ax.set_xlabel("WordPiece 网格位置")
+    ax.set_title("WordPiece 位置与原词归属")
+    ax.grid(False)
+
+    ax = axes[1]
+    shown_words = []
+    for row in rows:
+        if row["word_id"] in shown_words:
+            continue
+        shown_words.append(row["word_id"])
+        start, end = float(row["t_s"]), float(row["t_e"])
+        color = word_colors[row["word_id"]]
+        ax.broken_barh([(start, end - start)], (len(shown_words) - 1, 0.62), facecolors=[color], edgecolors="white", linewidth=0.7)
+        label = str(row["word_text"])
+        if row["alignment_status"] == "interpolated":
+            label += "*"
+        ax.text(start + (end - start) / 2, len(shown_words) - 1 + 0.31, label, ha="center", va="center", fontsize=7.0)
+    ax.set_ylim(-0.1, max(1, len(shown_words)))
+    ax.set_yticks([])
+    ax.set_xlabel("物理时间，半开区间 $[t_s, t_e)$")
+    ax.set_title("音视按词区间池化")
+    ax.grid(axis="x", alpha=0.3)
+    fig.suptitle("示例：WordPiece → 原词 → 物理时间映射", y=1.01, fontsize=10.5)
+    save_figure(fig, output / "q1_coordinate_mapping.pdf")
+
+
+def plot_behavior_detail(run_root: Path, output: Path) -> None:
+    behavior = json.loads((run_root / "behavior_detail.json").read_text(encoding="utf-8"))
+    agreement = behavior["A_位置级一致率"]
+    reason = behavior["C_缺失原因比例"]["vision_content_position比例"]
+    corr = behavior["D_能量代理相关"]
+    fig, axes = plt.subplots(2, 2, figsize=(6.6, 4.55))
+
+    ax = axes[0, 0]
+    splits = ["train", "test"]
+    x = np.arange(len(splits))
+    width = 0.18
+    for offset, modality, color in [(-width, "audio", MOD_COLOR["audio"]), (0, "vision", MOD_COLOR["vision"])]:
+        values = [agreement[split][modality] * 100 for split in splits]
+        bars = ax.bar(x + offset, values, width, label=modality, color=color)
+        ax.bar_label(bars, fmt="%.1f", fontsize=6.5, padding=1)
+    ax.set_xticks(x - width / 2, ["train (11)", "test (7)"])
+    ax.set_ylim(80, 101)
+    ax.set_ylabel("逐位一致率（%）")
+    ax.set_title("位置级非零一致率")
+    ax.legend(frameon=False, fontsize=7)
+
+    ax = axes[0, 1]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败"]
+    values = [reason.get(label, 0) * 100 for label in labels]
+    ax.bar(labels, values, color=["#009E73", "#E69F00", "#CC79A7", "#D55E00"])
+    ax.set_ylabel("内容位占比（%）")
+    ax.set_title("视觉缺失原因构成")
+    ax.tick_params(axis="x", rotation=25)
+
+    ax = axes[1, 0]
+    mf = pd.read_csv(run_root / "manifest.csv")
+    sns.boxplot(data=mf[["audio_coverage", "vision_coverage"]].rename(columns={"audio_coverage": "audio", "vision_coverage": "vision"}), ax=ax, palette=[MOD_COLOR["audio"], MOD_COLOR["vision"]], width=0.45)
+    ax.set_ylim(-0.03, 1.03)
+    ax.set_ylabel("观测率")
+    ax.set_title("100 条样本观测率")
+
+    ax = axes[1, 1]
+    corr_labels = ["Pearson\ntrain", "Pearson\ntest", "Spearman\ntrain", "Spearman\ntest"]
+    corr_values = [corr["train"]["pearson"], corr["test"]["pearson"], corr["train"]["spearman"], corr["test"]["spearman"]]
+    colors = ["#0072B2", "#0072B2", "#009E73", "#009E73"]
+    ax.bar(corr_labels, corr_values, color=colors)
+    ax.axhline(0, color="#444444", linewidth=0.7)
+    ax.set_ylim(-1, 1)
+    ax.set_ylabel("相关系数")
+    ax.set_title("RMS 与官方 L2 幅值代理")
+    ax.tick_params(axis="x", labelsize=6.8)
+    fig.suptitle("问题一：细粒度行为核查", y=1.01, fontsize=10.5)
+    save_figure(fig, output / "q1_behavior_detail.pdf")
+
+
+# ---------------------------------------------------------------------------
+# 图2：50 步语义网格与状态掩码（正文主图，自动从冻结 pkl 生成）
+# ---------------------------------------------------------------------------
+# 样本固定为触发头部截断的最长样本：65 词截断为 39 词 + 48 个内容片，
+# 同图覆盖多子词 alpha、tail/mid-tail/ambi 标点继承、低置信度插值、SEP@49。
+SEMANTIC_GRID_SAMPLE = "-a55Q6RWvTA$_$3"
+
+ATTACH_STYLE = {  # attach_type -> (填充色, 文字色, hatch)
+    "special": ("#5B6470", "white", None),
+    "word": ("#BFD8EA", "#1F2933", None),
+    "tail": ("#F2CB8F", "#1F2933", None),
+    "mid-tail": ("#F2CB8F", "#1F2933", "///"),
+    "ambi": ("#BFE3B4", "#1F2933", None),
+}
+
+
+def plot_semantic_grid(run_root: Path, output: Path, sid: str = SEMANTIC_GRID_SAMPLE) -> None:
+    sample = pickle.load(open(run_root / "samples" / f"{sid.replace('$_$', '__')}.pkl", "rb"))
+    mrow = pd.read_csv(run_root / "manifest.csv").set_index("id").loc[sid]
+    rows = sample["wp_word_time_map"]
+    meta = sample["metadata"]
+    duration = float(meta["duration"])
+
+    fig, (ax_tok, ax_mask, ax_aq, ax_time) = plt.subplots(
+        4, 1, figsize=(6.9, 7.2), sharex=True,
+        gridspec_kw={"height_ratios": [3.2, 2.1, 1.05, 1.6]},
+    )
+    fig.subplots_adjust(hspace=0.42)
+
+    # ---- 词元行：位置 0–49 的 token，按 attach_type 着色 ----
+    word_ids = [r["word_id"] for r in rows]
+    for r in rows:
+        pos = r["position"]
+        fill, tcol, hatch = ATTACH_STYLE.get(r["attach_type"], ("#E5E7EB", "#1F2933", None))
+        truncated = bool(r["trunc_flag"])
+        ax_tok.add_patch(plt.Rectangle(
+            (pos - 0.47, 0.04), 0.94, 0.64, facecolor=fill,
+            edgecolor="#A94442" if truncated else "white",
+            linewidth=1.5 if truncated else 0.6, hatch=hatch, zorder=2,
+        ))
+        ax_tok.text(pos, 0.09, r["token"], rotation=90, ha="center", va="bottom",
+                    fontsize=6.2, color=tcol, zorder=3)
+    ax_tok.set_xlim(-0.55, 49.55)
+    ax_tok.set_ylim(0, 4.1)
+    ax_tok.set_yticks([])
+    ax_tok.grid(False)
+    ax_tok.set_title("子词行",
+                     loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
+
+    # 词边界参考线（相邻位置 word_id 变化处），贯穿词元/连续量/时间三个轴
+    seps = [i for i in range(1, 50) if word_ids[i] != word_ids[i - 1]]
+    for ax, y0, y1 in [(ax_tok, 0.02, 0.70), (ax_aq, -0.5, 1.5), (ax_time, 0, duration * 1.04)]:
+        for i in seps:
+            ax.plot([i - 0.5, i - 0.5], [y0, y1], color="#9AA5B1", lw=0.6, alpha=0.55, zorder=1)
+
+    # 图例（attach_type 分类；tail/mid-tail 合并，斜纹示意词内继承）
+    legend_items = [
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["word"][0], ec="none", label="内容子词"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["tail"][0], ec="none", hatch="///",
+                      label="标点挂靠（斜纹 = 词内继承）"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["ambi"][0], ec="none", label="两可类标点"),
+        plt.Rectangle((0, 0), 1, 1, fc=ATTACH_STYLE["special"][0], ec="none", label="特殊位 CLS / SEP"),
+        plt.Rectangle((0, 0), 1, 1, fc="none", ec="#A94442", lw=1.4, label="截断边界"),
+    ]
+    ax_tok.legend(handles=legend_items, loc="upper left", bbox_to_anchor=(0.0, 1.02),
+                  frameon=False, fontsize=6.2, ncol=2, handlelength=1.3, columnspacing=0.9)
+
+    arrow = dict(arrowstyle="->", color="#374151", lw=0.7, shrinkA=1, shrinkB=1)
+    # 注释按实测包围盒分带放置：带1 y∈[1.15,1.6]（短块）、带2 y∈[1.8,2.8]、带3 y∈[3.0,4.0]（图例与截断）
+    # 低置信度插值词
+    ax_tok.annotate("对齐失败插值\n质量 ≈ 0.08", xy=(2, 0.70), xytext=(0.8, 1.58),
+                    ha="left", va="top", fontsize=6.4, arrowprops=arrow)
+    # 多子词 + 标点继承 + alpha
+    ax_tok.annotate("多子词：coupons → 3 个子词\n标点 , 收尾类挂靠前词\n$\\alpha_j = 1/3$",
+                    xy=(6.5, 0.70), xytext=(7.5, 2.78), ha="left", va="top", fontsize=6.4,
+                    arrowprops=arrow)
+    # ambi 引号
+    ax_tok.annotate("两可类标点\n归属前后词存在歧义", xy=(40, 0.70), xytext=(24, 1.58),
+                    ha="left", va="top", fontsize=6.4, arrowprops=arrow)
+    # 头部截断 + SEP@49
+    ax_tok.annotate("头部截断：保留 CLS 与前 48 个内容子词\n其后 26 个词（t > 11.7 s）被丢弃\nSEP 固定 j = 49，该位 $o_j^m = 0$",
+                    xy=(48.2, 0.70), xytext=(38.5, 3.98), ha="center", va="top", fontsize=6.4,
+                    arrowprops=arrow)
+
+    # ---- 掩码行：三分区 + 三模态观测 ----
+    masks = np.vstack([
+        sample["content_mask"], sample["special_mask"], sample["padding_mask"],
+        sample["observed_mask_text"], sample["observed_mask_audio"], sample["observed_mask_video"],
+    ]).astype(int)
+    ax_mask.imshow(masks, aspect="auto", cmap=mpl.colors.ListedColormap(["#F2F2F2", "#3E7CB1"]),
+                   interpolation="nearest", vmin=0, vmax=1,
+                   extent=(-0.5, 49.5, len(masks) - 0.5, -0.5))
+    ax_mask.set_yticks(range(len(masks)))
+    ax_mask.set_yticklabels(["结构·内容位", "结构·特殊位", "结构·填充位",
+                             "观测·文本", "观测·语音", "观测·视觉"],
+                            fontsize=6.8)
+    ax_mask.set_title("结构状态与观测状态（浅 = 0，深 = 1）",
+                      loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
+    ax_mask.set_xticks(np.arange(51) - 0.5, minor=True)
+    ax_mask.set_yticks(np.arange(len(masks) + 1) - 0.5, minor=True)
+    ax_mask.grid(False)
+    ax_mask.grid(which="minor", color="white", lw=0.35)
+    ax_mask.tick_params(which="both", length=0)
+
+    # ---- 连续状态量：alpha 与 quality ----
+    aq = np.vstack([np.asarray(sample["alpha"]), np.asarray(sample["quality_audio"])])
+    im_aq = ax_aq.imshow(aq, aspect="auto", cmap="viridis", interpolation="nearest",
+                         vmin=0, vmax=1, extent=(-0.5, 49.5, 1.5, -0.5))
+    ax_aq.set_yticks([0, 1])
+    ax_aq.set_yticklabels(["$\\alpha_j$（词内均匀权）", "质量·语音"], fontsize=6.8)
+    ax_aq.set_title("词内均匀权与质量（音视逐位相同）", loc="left", fontsize=FONT_SIZE["TITLE"], pad=3)
+    ax_aq.set_xticks(np.arange(51) - 0.5, minor=True)
+    ax_aq.set_yticks(np.arange(3) - 0.5, minor=True)
+    ax_aq.grid(False)
+    ax_aq.grid(which="minor", color="white", lw=0.35)
+    ax_aq.tick_params(which="both", length=0)
+    # 在 alpha 行标注 1/n_wp（仅在多子词组首格标注，避免相邻标签粘连）
+    for r in rows:
+        n = r.get("wp_count_in_word") or 0
+        if r["attach_type"] != "special" and n > 1 and r["position"] - 1 in seps:
+            ax_aq.text(r["position"], 0, f"1/{n}", ha="center", va="center",
+                       fontsize=6.0, color="white")
+    cbar = fig.colorbar(im_aq, ax=ax_aq, fraction=0.03, pad=0.01)
+    cbar.ax.tick_params(labelsize=6)
+    cbar.set_label("取值 0–1", fontsize=6.5)
+
+    # ---- 位置 → 物理时间：词区间池化，非等间隔帧 ----
+    for r in rows:
+        if r["t_s"] is not None:
+            ax_time.bar(r["position"], r["t_e"] - r["t_s"], bottom=r["t_s"], width=0.86,
+                        color="#3E7CB1", edgecolor="white", linewidth=0.25, zorder=2)
+    xs = np.arange(50)
+    ax_time.plot(xs, duration * (xs + 0.5) / 50, ls="--", lw=1.0, color="#888888", zorder=3,
+                 label=f"等间隔采样参考（{duration:.2f} s ÷ 50）")
+    ax_time.set_ylim(0, duration * 1.05)
+    ax_time.set_ylabel("物理时间 (s)")
+    ax_time.set_xlabel("语义位置（子词网格）")
+    ax_time.set_title("语义位置 → 物理时间（词区间池化复制）", loc="left",
+                      fontsize=FONT_SIZE["TITLE"], pad=3)
+    ax_time.annotate("同一原词的多个子词复制同一词区间\n$[t_s,\\, t_e)$（coupons：位置 5–7）",
+                     xy=(6, 2.6), xytext=(0.5, 12.6), ha="left", va="top", fontsize=6.4,
+                     arrowprops=arrow)
+    ax_time.annotate("虚线为等间隔采样参考；词区间明显偏离——\n语音 / 视觉并非 50 个等间隔帧",
+                     xy=(40, duration * 40.5 / 50), xytext=(17, 18.4), ha="left", va="top",
+                     fontsize=6.4, arrowprops=arrow)
+    ax_time.legend(frameon=False, fontsize=6.4, loc="lower right")
+
+    ax_time.set_xticks(list(range(0, 50, 5)) + [49])
+    ax_time.tick_params(axis="x", labelbottom=True)
+    for ax in (ax_tok, ax_mask, ax_aq):
+        ax.tick_params(axis="x", labelbottom=False)
+
+    output.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output / "q1_semantic_grid.pdf")
+    fig.savefig(output / "q1_semantic_grid.png", dpi=300)
+    plt.close(fig)
+
+    kept_words = sum(1 for w in sample["full_word_map"] if not w.get("dropped"))
+    print("图2 caption 素材：")
+    print(f"  样本 {sid}（{meta['video_id']} 片段 {meta['clip_id']}，{mrow['split']}）")
+    print(f"  词数 {len(sample['full_word_map'])} → 保留 {kept_words}（截断丢弃 "
+          f"{len(sample['full_word_map']) - kept_words}），内容片 48，CLS@0 + SEP@49，"
+          f"trunc_flag 位于位置 47–48")
+    print(f"  时长 {duration:.2f} s，fps {float(mrow['fps']):.4f}"
+          f"（{'VFR' if bool(mrow['is_vfr']) else 'CFR'}），模态维度 text 50×768 / audio 50×25 / vision 50×23")
+    print(f"  对齐状态 {mrow['alignment_status']}，对齐失败率 {float(mrow['alignment_failure_rate']):.4f}，"
+          f"audio/vision 观测率 {float(mrow['audio_coverage']):.3f}/{float(mrow['vision_coverage']):.3f}")
+
+
+# ---------------------------------------------------------------------------
+# 图3 + 表：P1 验收"一表一图"（精确数字进表，分布与构成进图）
+# ---------------------------------------------------------------------------
+
+
+def write_acceptance_table(run_root: Path, output_dir: Path) -> None:
+    """从 acceptance_report.json 自动生成 LaTeX 验收汇总表（booktabs 三线表）。"""
+    rep = json.loads((run_root / "acceptance_report.json").read_text(encoding="utf-8"))
+    b = rep["behavior"]
+    d_a = abs(b["audio_nonzero_rate"] - b["benchmark_audio_nonzero"]) * 100
+    d_v = abs(b["vision_nonzero_rate"] - b["benchmark_vision_nonzero"]) * 100
+    n_bit = sum(r["text_bert_bitwise"] for r in rep["text_check"])
+    cos_min = min(r["text_cos_min"] for r in rep["text_check"])
+    mf = pd.read_csv(run_root / "manifest.csv")
+    counts = mf["alignment_status"].value_counts()
+    ok, rv, rb = int(counts.get("ok", 0)), int(counts.get("review", 0)), int(counts.get("rollback", 0))
+
+    tex = "\n".join([
+        "\\begin{table}[htbp]",
+        "  \\centering\\small",
+        "  \\caption{问题一验收结果汇总}",
+        "  \\label{tab:q1-acceptance}",
+        "  \\begin{tabular}{p{2.3cm}p{4.6cm}p{3.1cm}l}",
+        "    \\toprule",
+        "    验收项 & 实测值 & 参照基准 & 判定 \\\\",
+        "    \\midrule",
+        f"    覆盖完整性 & {rep['coverage']['label_rows']}/100 一一对应，无缺失/重复/多余 & 附件1 label-100 & 通过 \\\\",
+        f"    Schema 一致性 & 违例 {len(rep['schema_violations'])}（shape/dtype/mask 分区/SEP 位） & p1.v2 契约 & 通过 \\\\",
+        f"    BERT 留出一致性 & bitwise {n_bit}/{len(rep['text_check'])}，cos$_{{\\min}}$={cos_min:.3f} & 附件2 test 重叠 {len(rep['text_check'])} 条 & 通过 \\\\",
+        f"    audio 非零率 & {b['audio_nonzero_rate']:.5f} & {b['benchmark_audio_nonzero']:.5f} & $|\\Delta|$={d_a:.3f}\\,pp $\\le$ {b['tolerance_pp']:.0f}\\,pp \\\\",
+        f"    vision 非零率 & {b['vision_nonzero_rate']:.5f} & {b['benchmark_vision_nonzero']:.5f} & $|\\Delta|$={d_v:.3f}\\,pp $\\le$ {b['tolerance_pp']:.0f}\\,pp \\\\",
+        f"    对齐质量状态 & ok/review/rollback = {ok}/{rv}/{rb} & — & 质量标记，非管线失败 \\\\",
+        "    \\bottomrule",
+        "  \\end{tabular}",
+        "  \\par \\smallskip",
+        "  {\\small 注：非零率保留 5 位小数以逐位核对基准；bitwise 表示逐位相等；"
+        "ok/review/rollback 为质量标记（非管线失败）。}",
+        "\\end{table}",
+    ])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "q1_acceptance_summary.tex").write_text(tex, encoding="utf-8")
+    print(f"验收表: {output_dir}/q1_acceptance_summary.tex")
+
+
+def plot_acceptance_summary(run_root: Path, output: Path) -> None:
+    mf = pd.read_csv(run_root / "manifest.csv")
+    behavior = json.loads((run_root / "behavior_detail.json").read_text(encoding="utf-8"))
+    miss = behavior["C_缺失原因比例"]
+    n_pos = miss["content_positions"]
+    vreason = miss["vision_content_position比例"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.55))
+
+    # Panel A：对齐质量状态分布（质量状态，非管线失败）
+    ax = axes[0]
+    states = ["ok", "review", "rollback"]
+    values = [int((mf["alignment_status"] == s).sum()) for s in states]
+    colors = [STATUS["ok"], STATUS["review"], STATUS["rollback"]]
+    bars = ax.barh(states[::-1], values[::-1], color=colors[::-1], height=0.62)
+    ax.bar_label(bars, fmt="%d", fontsize=7, padding=2)
+    ax.set_xlim(0, 52)
+    ax.set_xlabel("样本数")
+    ax.set_title("对齐质量状态分布", loc="left", fontsize=FONT_SIZE["TITLE"])
+    ax.text(0.5, -0.30, "质量状态标记，非管线失败", transform=ax.transAxes,
+            ha="center", fontsize=6.0, color="#6B7280")
+
+    # Panel B：100 条观测率分布
+    ax = axes[1]
+    cov = mf[["audio_coverage", "vision_coverage"]].rename(
+        columns={"audio_coverage": "语音", "vision_coverage": "视觉"})
+    sns.boxplot(data=cov, ax=ax, palette=[MOD_COLOR["audio"], MOD_COLOR["vision"]], width=0.45, fliersize=0)
+    sns.stripplot(data=cov, ax=ax, color="#374151", size=2.0, alpha=0.45, jitter=0.12)
+    ax.set_ylim(-0.04, 1.06)
+    ax.set_ylabel("观测率")
+    ax.set_title("观测率分布", loc="left", fontsize=FONT_SIZE["TITLE"])
+    ax.text(0.5, -0.30, "语音：100/100 条 = 1.0；视觉：28 条 < 1.0，中位数 1.0",
+            transform=ax.transAxes, ha="center", va="top", fontsize=6.0, color="#6B7280")
+
+    # Panel C：vision 缺失原因构成（content-position 级，分母 = 内容位置数）
+    ax = axes[2]
+    labels = ["无缺失", "无人脸", "无有效帧", "对齐失败"]
+    shares = [vreason.get(k, 0) * 100 for k in labels]
+    seg_colors = ["#009E73", "#E69F00", "#CC79A7", "#D55E00"]
+    left = 0.0
+    for share, color in zip(shares, seg_colors):
+        if share <= 0:
+            continue
+        ax.barh([0], [share], left=left, color=color, height=0.42)
+        if share >= 3:
+            ax.text(left + share / 2, 0, f"{share:.1f}", ha="center", va="center",
+                    fontsize=6.4, color="white")
+        left += share
+    ax.set_yticks([])
+    ax.set_xlim(0, 106)
+    ax.set_xlabel("占比 (%)")
+    ax.set_title("视觉缺失原因构成", loc="left", fontsize=FONT_SIZE["TITLE"])
+    handles = [plt.Rectangle((0, 0), 1, 1, fc=c, ec="none") for c in seg_colors]
+    ax.legend(handles, [f"{l} {s:.1f}%" for l, s in zip(labels, shares)],
+              frameon=False, fontsize=6.0, ncol=2,
+              loc="upper center", bbox_to_anchor=(0.5, -0.36), handlelength=1.1,
+              columnspacing=0.8)
+    ax.text(0.99, 0.90, f"分母：视觉内容位置数 N={n_pos}", transform=ax.transAxes,
+            ha="right", fontsize=6.0, color="#374151")
+
+    output.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output / "q1_acceptance_summary.pdf")
+    fig.savefig(output / "q1_acceptance_summary.png", dpi=300)
+    plt.close(fig)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-root", type=Path, default=DEFAULT_RUN)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    args = parser.parse_args()
+    configure_style()
+    args.output.mkdir(parents=True, exist_ok=True)
+    plot_q1_solving_flow(args.output)
+    plot_quality(args.run_root, args.output)
+    plot_observation_heatmaps(args.run_root, args.output)
+    plot_fps_distribution(args.run_root, args.output)
+    plot_coordinate_mapping(args.run_root, args.output)
+    plot_behavior_detail(args.run_root, args.output)
+    plot_semantic_grid(args.run_root, args.output)
+    write_acceptance_table(args.run_root, ROOT / "paper/latex/tables")
+    plot_acceptance_summary(args.run_root, args.output)
+    print(f"Generated Q1 figures in {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

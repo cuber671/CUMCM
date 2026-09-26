@@ -1,0 +1,63 @@
+{
+  "python": "3.10.12",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "feature_config": {
+    "audio_sample_rate": 16000,
+    "audio_hop_ms": 10,
+    "vision_timestamp": "pts",
+    "max_length": 50,
+    "tokenizer": "bert-base-uncased",
+    "truncation": "head: CLS+前48非特殊片+SEP@49"
+  },
+  "models": {
+    "bert": "bert-base-uncased @ 本地 cache/hf/bert-base-uncased（pin 86b5e0934494bd15c9632b12f734a8a67f723594）",
+    "forced_align": "torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H + functional.forced_align（cache/torch/hub/checkpoints）"
+  },
+  "torch": "2.11.0+cu130",
+  "cuda_available": true,
+  "cuda_runtime": "13.0",
+  "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "torchaudio": "2.11.0+cu130",
+  "transformers": "5.17.0",
+  "opensmile": "2.6.0",
+  "ffmpeg": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers",
+  "py_feat": "0.6.1",
+  "s0_smoke": [
+    {
+      "check": "torch import",
+      "pass": true,
+      "detail": "2.11.0+cu130"
+    },
+    {
+      "check": "CUDA/GPU",
+      "pass": true,
+      "detail": "NVIDIA GeForce RTX 5060 Laptop GPU cap=(12, 0)"
+    },
+    {
+      "check": "smoke1 bert-base-uncased tokenizer+forward",
+      "pass": true,
+      "detail": "last_hidden_state (1, 5, 768)"
+    },
+    {
+      "check": "smoke2 wav2vec2 forced_align",
+      "pass": true,
+      "detail": "1s 波形→帧级词对齐 OK（大写词表 29 类）"
+    },
+    {
+      "check": "smoke3 opensmile eGeMAPSv02 LLD",
+      "pass": true,
+      "detail": "25 维帧级输出，帧数 96"
+    },
+    {
+      "check": "ffmpeg (imageio-ffmpeg)",
+      "pass": true,
+      "detail": "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers"
+    },
+    {
+      "check": "smoke4 py-feat 人脸检测+AU",
+      "pass": true,
+      "detail": "检出人脸 1，AU 列 20（管线绿即通过）"
+    }
+  ],
+  "s0_all_green": true
+}

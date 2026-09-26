@@ -38,3 +38,20 @@ paper/latex/*.log
 paper/latex/*.fls
 paper/latex/*.fdb_latexmk
 paper/latex/*.xdv
+
+# 临时调试产物
+paper/latex/main_skip3.pdf
+paper/latex/main_from_toc.pdf
+paper/latex/main_with_template.pdf
+paper/latex/main.tex.before_*
+submission.zip
+docs/E24101480006*.pdf
+docs/~$*.docx
+# Word 临时锁文件
+docs/~$*.docx
+# 他校样例论文
+docs/E24101480006*.pdf
+# 官方论文模板（赛题方提供，不入库）
+docs/附件3*.docx
+docs/附件3*.pdf
+submission/*skip3*.pdf

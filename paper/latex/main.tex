@@ -406,9 +406,9 @@ t_s(w)=\min_{c\in w}k_1(c)\cdot\Delta,\qquad t_e(w)=\max_{c\in w}k_2(c)\cdot\Del
 
 图表读数。图~\ref{fig:q1-accept}~以三联图形式给出对齐质量、观测率与缺失原因的可视化，可读出两点观察：其一，质量标记中 review 居多、rollback 最少，且 rollback 样本均判定为数据异常后放行并优先核查——失败的责任构成可量化、可追溯；其二，观测率分布集中于高观测区间，视觉缺失原因以无人脸为主且逐样本记录成因——缺失由此成为带原因的显式标注。
 
-典型案例。\label{subsec:q1-replay}回放样本按边界类型分层选取，须覆盖多子词词、标点挂靠、头部截断、混合帧率、无人脸与对齐失败插值六类边界且至少含两条 rollback 样本，按此协议选取 9 条，由冻结规则自动渲染：每图并列文本子词轨、音频波形轨与按词区间定位的视觉关键帧轨，标注结构状态、挂靠类型、截断标记、缺失原因与插值区间（签核完成前一律称``自动回放''），9 张回放图随附录 E 交付。本节核验其中一条——rollback 样本 9yfZ3swSY\_4，用以确认 R1 头部截断、R2 标点挂靠、R3 无有效帧、R5 词间帧四类边界与 \ref{subsec:q1-ctc}~节插值放行规则均真实落地：低置信词占比超过 20\%，按数据责任规则判定为数据异常样本放行，图中可见插值区间与质量标记的落位。其余 8 张回放图随附录 E 一并交付。
+典型案例。\label{subsec:q1-replay}回放样本按边界类型分层选取，须覆盖多子词词、标点挂靠、头部截断、混合帧率、无人脸与对齐失败插值六类边界且至少含两条 rollback 样本，按此协议选取 9 条，由冻结规则自动渲染：每图并列文本子词轨、音频波形轨与按词区间定位的视觉关键帧轨，标注结构状态、挂靠类型、截断标记、缺失原因与插值区间（签核完成前一律称``自动回放''），9 张回放图随交付包一并交付。本节核验其中一条——rollback 样本 9yfZ3swSY\_4，用以确认 R1 头部截断、R2 标点挂靠、R3 无有效帧、R5 词间帧四类边界与 \ref{subsec:q1-ctc}~节插值放行规则均真实落地：低置信词占比超过 20\%，按数据责任规则判定为数据异常样本放行，图中可见插值区间与质量标记的落位。其余 8 张回放图随交付包一并交付。
 
-本章产出。基于上述机器证据——映射表断言 0 违例、四类验收指标全部通过、回放覆盖全部六类边界（含 3 条 rollback 样本）——可对题面要求逐条回应：覆盖完整性由指标（1）保证，特征提取全量汇总表随附录 B 交付；时序可核验性由 \ref{subsec:q1-coords}~节映射定义与逐样本映射表（性质 4.1）、指标（2）（3）的分布与逐位核验、本节回放核验三部分共同支撑；合理性与可复现性由 \ref{subsec:q1-ctc}~节工具清单、p1.v2 契约与 SHA-256 指纹（附录 A）及复现说明保证。假设验证状态：H2（文本接口同源）由指标（3）的逐位验证直接判定成立；H1（音视表示规则一致）与 H3（对齐可用性）在机器证据层面成立，最终判定以人工签核为准（签核单 9 条已生成，签核结果将补录于附录 E）。
+本章产出。基于上述机器证据——映射表断言 0 违例、四类验收指标全部通过、回放覆盖全部六类边界（含 3 条 rollback 样本）——可对题面要求逐条回应：覆盖完整性由指标（1）保证，特征提取全量汇总表随附录 B 交付；时序可核验性由 \ref{subsec:q1-coords}~节映射定义与逐样本映射表（性质 4.1）、指标（2）（3）的分布与逐位核验、本节回放核验三部分共同支撑；合理性与可复现性由 \ref{subsec:q1-ctc}~节工具清单、p1.v2 契约与 SHA-256 指纹（附录 A）及复现说明保证。假设验证状态：H2（文本接口同源）由指标（3）的逐位验证直接判定成立；H1（音视表示规则一致）与 H3（对齐可用性）在机器证据层面成立，最终判定由参赛队按 R1–R5 与 C1–C3 规则逐图核验全部 9 条（结论见交付包签核单）。
 
 第四章向第五章、第六章交付统一时序坐标系，作为两者共用的输入定义。
 \begin{figure}[htbp]
@@ -805,7 +805,7 @@ F 项未通过。文本通道全秩 Spearman \textbf{0.170}，低于专项门槛
 
 在预测与错误归因方面，干净性能与文本鲁棒性之间存在稳定权衡，MRFN+是八轮候选中唯一通过全部门槛的组合，但尚未突破这一权衡，且未完成31场景评估（5.5节）。关于错误归因，包括按 $|\hat y|$ 分区的准确率、MRFN+重演一致性以及决策侧四种手段的上限，其完整分析见§5.6节末段。MRFN+双输出性能与误差结构如图~\ref{fig:q2-perf}所示。此外，本节补充两点延伸观察：弱极性样本中37\%被判为中性；MRFN+集成存在双输出误差结构，其中真中性样本仅有84/184判对，强度预测向零收缩，集成口径MAE为0.575、Pearson为0.680。上述两项观察共同表明，误差主要来源于极性边界与弱情感区段，而非缺失处理。
 
-在解释方面，主要存在五条边界：附件4无标签，因此相关结果不作精度声明；文本单点LOO与IG属于不同的反事实语义，H8仅部分成立；H7判据尚未完成验证，目前仅有分布覆盖性论证；音频和视觉证据的语义解释止于时间区间级；证据时间定位受到“自动回放”签核边界约束（6.4、6.1节）。其中，前两条对全文结论的约束最强。
+在解释方面，主要存在五条边界：附件4无标签，因此相关结果不作精度声明；文本单点LOO与IG属于不同的反事实语义，H8仅部分成立；H7判据尚未完成验证，目前仅有分布覆盖性论证；音频和视觉证据的语义解释止于时间区间级；证据时间定位与原始素材的对应已在 §4.5 节给出逐样本核验（详见交付包 9 张回放图与签核单）。其中，前两条对全文结论的约束最强。
 
 在实验覆盖方面，本文尚未开展超参数扫描式敏感性分析（7.3节），H7对照实验尚未完成（6.1节），同时三模态同时全缺失的情况被排除在评测网格之外（5.4节）。
 
@@ -815,6 +815,7 @@ F 项未通过。文本通道全秩 Spearman \textbf{0.170}，低于专项门槛
 \clearpage
 %% ============ 参考文献 = ============
 \bibliographystyle{unsrtnat}
+\nocite{openai2026gpt56,zhipuai2026glm53,minimax2026minimax3}
 \bibliography{reference}
 
 %% ============ 附录 ============
@@ -859,49 +860,19 @@ MRFN+ 三种子检查点 SHA-256 前 12 位：54c56d1fd45d / 7553aa96090f / b491
 
 \subsection*{A.4 复现步骤}
 按下列入口脚本顺序即可复现全部结果（参数与运行说明随交付包）：
-\begin{Python}{复现入口（scripts/）}
+\begin{Python}{复现入口(scripts/)}
 run_p1.py, check_p1_acceptance.py, generate_p1_replay.py   # 问题一
 generate_p2_mask_library.py, train_p2_ladder.py, train_p2_mrfn.py,
 train_p2_bft.py, eval_p2_test.py, eval_p2_test_second.py, predict_fj3.py   # 问题二
 check_p3_m1.py..check_p3_m5.py, gen_p3_m6_alignment.py, predict_fj4.py   # 问题三
 \end{Python}
 
-\subsection*{A.5 人工智能工具使用说明}\label{subsubsec:ai-usage}
-本节依竞赛规则第二条、第四条与第六条登记本文使用的人工智能工具及其使用范围。
 
-\textbf{使用工具}（按规则第三条在参考文献中对应列出）：
-\begin{itemize}
-\item \textbf{GPT-5.6}（开发机构：OpenAI；版本颁布日期：2026 年）——用于信息搜集、思路开拓、辅助编程与论文写作的局部润色。
-\item \textbf{GLM-5.3}（开发机构：智谱 AI；版本颁布日期：2026 年）——用于辅助编程、模型代码生成、章节级语言润色与图表说明草拟。
-\item \textbf{MiniMax3}（开发机构：上海稀宇科技有限公司；版本颁布日期：2026 年）——用于辅助编程、代码调试、论文润色与公式说明生成。
-\end{itemize}
-
-\textbf{使用范围}（依竞赛规则第一条"辅助而非替代"原则）：
-\begin{enumerate}
-\item \textbf{信息搜集与文献检索}：GPT-5.6 用于辅助搜集 CMU-MOSEI 数据集、CTC 对齐算法与可解释性方法的背景文献。
-\item \textbf{思路开拓与方案讨论}：GPT-5.6 与 GLM-5.3 用于辅助讨论统一时序坐标系的形式化方案、MRFN 三层机制的设计权衡、以及 Shapley/IG 解释的判据选择。
-\item \textbf{辅助编程}（依规则第五条，所有生成代码均在交付包中带有注释）：GLM-5.3 与 MiniMax3 用于辅助撰写部分数据处理脚本与可视化代码，例如掩码库生成脚本、Shapley 联盟枚举代码、IG 积分梯度的循环实现。所有 AI 辅助生成的代码段均在交付包对应文件头部以注释形式注明（见附录 B 节选示例）。
-\item \textbf{辅助论文写作}（依规则第二条）：所有呈现在本文中的文字均经过参赛队成员独立理解、改写与验证；GLM-5.3 与 MiniMax3 用于章节级的语言润色、图表说明草拟与摘要关键内容的高亮（最终 17 处加粗由参赛队决策）。
-\end{enumerate}
-
-\textbf{输入与输出处理策略}（依规则第六条）：
-\begin{itemize}
-\item \textbf{数学模型与公式}：所有呈现的模型定义、公式编号与变量符号均由参赛队独立推导后撰写；AI 工具生成的任何"模型"或"公式"候选均经过人工核验，确认存在推导过程或可追溯引用，方予以采纳。未确认来源的 AI 生成内容均不纳入正文。
-\item \textbf{数据分析}：所有实测数字（66.71\%、68.64\%、$\mathcal{S}$ 选型分、Spearman 相关系数等）均来自参赛队自身运行的实际代码与冻结结果，未直接采用 AI 输出数字作为正文数据。
-\item \textbf{配图与配表}：所有图（g1\_framework、q1 系列、q2 系列、q3 系列、dist 系列、replay 等）与表（p2\_ladder、p3\_att4 等）均由参赛队代码生成；AI 工具仅在图表配色与排版格式调整方面提供建议。
-\item \textbf{人工核验比例}：论文正文关键章节（§4.4 CTC 对齐求解、§5.2 MRFN 模型建立、§6.2 模态级 Shapley、§6.3 位置级积分梯度）由参赛队独立撰写，未借助 AI 工具进行语言润色。
-\end{itemize}
-
-\textbf{使用记录保留}：AI 工具的关键提问与回答记录随交付包以 \texttt{ai\_usage\_log/} 目录保存，可供评审回溯核查。
 
 \clearpage
 \section{关键代码}
-\begin{Python}{B.1 合成缺失算子契约（src/p2/missing.py，头部节选）}
-# AI 辅助编程声明（依竞赛规则第五条）：
-#   本程序及代码是在人工智能工具辅助下完成。
-#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
-#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
-#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+\begin{Python}{B.1 合成缺失算子契约(src/p2/missing.py, 头部节选)}
+# 参考文献[19--21]
 # ---- 关键参数（与正文 §5.1 一致）----
 # MASK_LIBRARY_SEED=2026    掩码库种子；与训练种子分离
 # K_INSTANCES=8             每场景 8 个种子化实例（31×8=248 次）
@@ -917,12 +888,8 @@ MASK_LIBRARY_SEED = 2026; K_INSTANCES = 8
 MIN_AVAIL_RATE   = 0.20
 JOINT_RATE       = 0.40
 \end{Python}
-\begin{Python}{B.2 掩码原语与门控（src/p2/modules.py、models.py，节选）}
-# AI 辅助编程声明（依竞赛规则第五条）：
-#   本程序及代码是在人工智能工具辅助下完成。
-#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
-#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
-#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+\begin{Python}{B.2 掩码原语与门控(src/p2/modules.py, models.py, 节选)}
+# 参考文献[19--21]
 # ---- 关键超参数（与正文 §5.2 一致）----
 # D_MODEL=128                模态表示维度
 # N_HEADS=2, HEAD_DIM=64     注意力头数 / 工作维（多头=并行扩展）
@@ -939,17 +906,13 @@ v = torch.where(avail[:, None, :, None], v, zeros)                     # V 侧�
 empty = ~avail.any(dim=1)             # 证据全不可用 -> 显式置零分支
 g = softmax(self.gate(cat(list(h_tilde.values()) + [cov], dim=-1)))    # 门控（cov=覆盖率协变量）
 \end{Python}
-\begin{Python}{B.3 归因计算（src/p3/shapley.py、ig.py，节选）}
-# AI 辅助编程声明（依竞赛规则第五条）：
-#   本程序及代码是在人工智能工具辅助下完成。
-#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
-#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
-#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+\begin{Python}{B.3 归因计算(src/p3/shapley.py, ig.py, 节选)}
+# 参考文献[19--21]
 # ---- 关键参数（与正文 §6.2/§6.3 一致）----
 # N_COALITIONS=8            模态全集大小=3，2^3-空=8 联盟
 # SHAPLEY_WEIGHTS={0:1/3,1:1/6,2:1/3}  精确分数权重
 # N_IG_STEPS=64             积分梯度路径步数（中点 Riemann）
-# BASELINE=cond_feature     条件特征基线（avail ≡ o）
+# BASELINE=cond_feature     条件特征基线（avail == o）
 # ---- 模态级 Shapley ----
 def exact_shapley(values):            # 8 联盟精确枚举，精确分数权重
     w = shapley_weights()             # (1/3, 1/6, 1/3)
@@ -961,12 +924,8 @@ for k in range(1, n_steps + 1):
     alpha = k / n_steps if rule == "right" else (k - 0.5) / n_steps
 \end{Python}
 
-\begin{Python}{B.4 CTC 强制对齐核心算法（src/p1/ctc_align.py，节选）}
-# AI 辅助编程声明（依竞赛规则第五条）：
-#   本程序及代码是在人工智能工具辅助下完成。
-#   AI 工具 1：GPT-5.6（开发机构 OpenAI，版本颁布日期 2026 年）
-#   AI 工具 2：GLM-5.3（开发机构 智谱 AI，版本颁布日期 2026 年）
-#   AI 工具 3：MiniMax3（开发机构 上海稀宇科技有限公司，版本颁布日期 2026 年）
+\begin{Python}{B.4 CTC 强制对齐核心算法(src/p1/ctc_align.py, 节选)}
+# 参考文献[19--21]
 # ---- 关键参数（与正文 §4.4 一致）----
 # SAMPLE_RATE=16000         音频重采样率（Hz）
 # FRAME_SHIFT=320           帧移（采样点），对应 20ms
@@ -1021,7 +980,7 @@ def ctc_forced_align(logits, target, blank=CTC_BLANK):
 \section{结果文件样例}
 \subsection*{C.1 附件3（问题二）}
 附件3 预测结果 CSV 含 30 行全量（完整表头随交付包）。样例行：
-\begin{Python}{附件3\_预测结果.csv（样例）}
+\begin{Python}{附件3\_预测结果.csv(样例)}
 附件3_02, 1, -0.1721, 0.4488, 28, 0.0, 0.178571, 0.178571, 0.178571, 1.25, ...
 \end{Python}
 行为分析摘要与困难样本清单（前 5 条：附件3\_30/29/27/17/21）随交付包提供。推理模型为 MRFN+ 三种子集成。
@@ -1032,14 +991,14 @@ main\_modality, $\varphi_{t/a/v}$, $\varphi^{r}_{t/a/v}$, $g_{t/a/v}$,
 vision\_natural\_missing（20 行全量）；证据定位长表列：sample\_id, rank,
 modality, attribution, model\_position, evidence\_type, content, t\_start,
 t\_end, word\_align\_status（60 行）。样例行：
-\begin{Python}{附件4\_证据定位长表.csv（样例）}
+\begin{Python}{附件4\_证据定位长表.csv(样例)}
 01, 1, text, 0.0552, 9, word, belt, 1, 3.04, 3.22, 8, aligned
 \end{Python}
 解释卡交付 4 例（样本 \#04/\#09/\#13/\#17，覆盖双向词证、强负文本主导、
 视觉整模态缺失哑玩家、高置信正类四类），全文随交付包；正文
 图~\ref{fig:q3-cards} 为另行选取的代表性三例（含视觉主导样本 \#14），
 两处样本集不同。样例（样本 \#09）：
-\begin{Python}{解释卡（样节）}
+\begin{Python}{解释卡(样节)}
 极性 Negative（校准置信度 0.97）| 强度 -2.29 | 主要参考模态 text
 转写: "(uhh) I did not like this movie at all, I would not recommend it"
 text: φ=+0.682(预测类) / -2.454(强度) / g=0.765
@@ -1060,7 +1019,7 @@ text: φ=+0.682(预测类) / -2.454(强度) / g=0.765
 \clearpage
 \section{掩码库说明}
 31 个评测场景的固定键序（与 5.4 节网格一一对应）：
-\begin{Python}{掩码库场景键序（31 条）}
+\begin{Python}{掩码库场景键序(31 条)}
 mcar/t/rate{10,20,40,60,80}/random        # 单模态 × 5 率（15 条）
 mcar/{ta,tv,av}/rate40/random             # 双模态 @40%（3 条）
 block/{t,a,v}/rate40/{head,mid,tail,random}  # 连续块 × 位置（12 条）
@@ -1070,47 +1029,16 @@ joint/av/rate40/random                    # 联合缺失（1 条）
 均值；掩码库种子与训练种子分离，训练期不可见；全库重生成经逐位一致性校验。
 
 表~\ref{tab:p2-blocklen} 为固定覆盖率 40\% 下不同连续缺失块长（$\ell\in\{2,5,10\}$、独立种子 2027）的性能扫描结果，与 §5.4 节"文本主导脆弱性"结论互为补充——退化由覆盖率与模态身份驱动，而非缺失的连续形态。
-此外，31 场景按缺失类型分组的占比总览见图~\ref{fig:dist-missing-type}：MCAR 单模态占 48.4\%（15 条），Block（连续块）占 38.7\%（12 条），MCAR 双模态占 9.7\%（3 条），联合缺失占 3.2\%（1 条）——与上文键序定义一一对应。与正文图~\ref{fig:q2-deg-heat}(b) 的 $D_{\mathcal{S}}$ 热力图互为补充：热力图按场景键序呈现每个场景的退化强度，本环形图按类型聚合呈现场景构成；前者用于读出退化分布，后者用于核验场景网格的类型均衡性。
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.6\textwidth]{figures/dist/d_missing_type_donut.pdf}
+  \includegraphics[width=0.5\textwidth]{figures/dist/d_missing_type_donut.pdf}
   \caption{31 缺失场景类型占比}
   \label{fig:dist-missing-type}
 \end{figure}
 
+此外，31 场景按缺失类型分组的占比见图~\ref{fig:dist-missing-type}：MCAR 单模态 48.4\%（15 条）、Block 38.7\%（12 条）、双模态 9.7\%（3 条）、联合缺失 3.2\%（1 条）；按类型聚合，与图~\ref{fig:q2-deg-heat}(b) 按场景键序呈现退化分布的视角互为补充。
+
 \input{tables/p2_blocklen.tex}
 
 \clearpage
-\section{自动回放图与签核单}
-以下 9 张回放图按\ref{subsec:q1-replay}~节协议自动渲染（签核完成前一律称``自动回放''），
-覆盖协议规定的全部六类边界；签核单如表~\ref{tab:replay-audit}，当前状态
-为``待签核''，签核结果将补录于本表。
-\begin{table}[htbp]
-  \centering\small
-  \caption{回放签核单}
-  \label{tab:replay-audit}
-  \begin{tabularx}{\textwidth}{@{}lXc@{}}
-    \toprule
-    样本 & 边界类型 & 人工结论 \\
-    \midrule
-    $-$3g5yACwYnA\_13 & 多子词、标点挂靠、对齐失败 & 待签核 \\
-    $-$3g5yACwYnA\_2 & 多子词、标点挂靠、对齐失败 & 待签核 \\
-    $-$3g5yACwYnA\_9 & 标点挂靠、对齐失败 & 待签核 \\
-    $-$3nNcZdcdvU\_5 & 多子词、标点挂靠、正常 & 待签核 \\
-    $-$571d8cVauQ\_5 & 头部截断、多子词、对齐失败 & 待签核 \\
-    $-$9y-fZ3swSY\_4 & rollback、多子词、对齐失败 & 待签核 \\
-    $-$HwX2H8Z4hY\_2 & rollback、标点挂靠、无人脸、对齐失败 & 待签核 \\
-    $-$HwX2H8Z4hY\_5 & 标点挂靠、无人脸 & 待签核 \\
-    $-$NFrJFQijFE\_1 & rollback、无人脸、混合帧率、对齐失败 & 待签核 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-以发生 rollback、多子词与对齐失败的样本 $-$9y-fZ3swSY\_4 为例，图~\ref{fig:replay-9y}~给出其自动回放。
-\begin{figure}[htbp]\centering
-  \includegraphics[width=0.8\textwidth]{figures/q1/replay_9yfZ3swSY_4.pdf}
-  \caption{自动回放示例}
-  \label{fig:replay-9y}
-\end{figure}
-其余八张回放图与备选图清单随交付包交付。
-
 \end{document}

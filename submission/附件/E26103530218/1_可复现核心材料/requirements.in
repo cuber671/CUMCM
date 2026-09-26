@@ -1,0 +1,38 @@
+# 人为指定的直接依赖（传递依赖由 lock 层冻结，不在此维护）
+# 锁定顺序：Python → CUDA/GPU → torch/torchaudio → 其余 → smoke test → freeze
+# 版本快照与模型权重清单见 docs/环境与模型清单.txt（2026-09-23）
+
+# --- 深度学习栈（PyPI 通道；download.pytorch.org cu128 通道网络不可用已弃用）---
+torch==2.11.0            # PyPI 默认 Linux 轮子 = cu13 运行时，宿主驱动 CUDA 13.4，支持 Blackwell sm_120
+torchaudio==2.11.0       # 与 torch 同轮解析的兼容对；forced_align 所在
+
+# --- 文本 / NLP ---
+transformers==5.17.0
+tokenizers==0.23.2
+huggingface-hub==1.32.0  # 受限网络下需 HF_HUB_DISABLE_XET=1（见 scripts/env.sh）
+
+# --- 数值与表格 ---
+numpy==2.2.6
+scipy==1.15.3
+pandas==2.3.3
+scikit-learn==1.7.2
+numba==0.67.0
+
+# --- 语音 ---
+opensmile==2.6.0         # eGeMAPSv02 配置内置，零下载
+librosa==0.11.0
+soundfile==0.14.0
+
+# --- 视觉 ---
+opencv-python-headless==5.0.0.93   # WSL2 无 GUI；避免与 opencv-python 双 cv2 冲突
+py-feat==0.6.1           # 必须 import src/compat_feat.py 垫片后再用（scipy/numpy/torchvision 兼容）
+numexpr==2.14.1          # py-feat 传递依赖；2.8.4 为 numpy1 编译须强制升级
+imageio                  # 待装：抽帧 + 逐帧 pts
+imageio-ffmpeg==0.6.0    # 内置 ffmpeg 7.0.2-static
+
+# --- 绘图与通用 ---
+matplotlib==3.10.9
+seaborn                  # 待装：论文图表（可选）
+pillow==12.3.0
+tqdm==4.70.1
+pyyaml==6.0.3
